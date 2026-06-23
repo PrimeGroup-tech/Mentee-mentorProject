@@ -1,0 +1,303 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  MENTEE
+  MENTOR
+  HR_ADMIN
+}
+
+enum LeadershipStyle {
+  DIRECT
+  COLLABORATIVE
+  ANALYTICAL
+  SUPPORTIVE
+  VISIONARY
+}
+
+enum PreferredMeetingFormat {
+  IN_PERSON
+  VIRTUAL
+  HYBRID
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String?
+  password  String?
+  role      UserRole   @default(MENTEE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  mentee    Mentee?
+  mentor    Mentor?
+  sessions  Session[]
+  accounts  Account[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Account {
+  id                 String @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Mentee {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  role                  String
+  businessUnit          String
+  yearsOfExperience     Int
+  tenure                Int
+  employmentDate        String?
+  
+  competencyGaps        String[]
+  careerGoals           String
+  personalInterests     String[]
+  preferredMeetingFormat PreferredMeetingFormat
+  
+  organizationalChallenge String?
+  softSkillsGap         String[]
+  gradeLevel            Int?
+  
+  profileComplete       Boolean  @default(false)
+  submittedAt          DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  preferences          MenteePreference[]
+  assignment           MentorMenteeAssignment?
+  matchingScores       MatchingScore[] @relation("MenteeScores")
+  auditLogs            AuditLog[] @relation("MenteeLogs")
+  mentoringSessions    MentoringSession[]
+
+  @@index([businessUnit])
+  @@index([submittedAt])
+}
+
+model Mentor {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  role                  String
+  businessUnit          String
+  yearsOfExperience     Int
+  
+  areasOfExpertise      String[]
+  leadershipStyle       LeadershipStyle
+  coachingGoals         String?
+  personalInterests     String[]
+  shadowSkills          String[]
+  
+  commitmentAvailability String?
+  maxMentees            Int      @default(2)
+  currentMenteeCount    Int      @default(0)
+  
+  organizationalChallenge String?
+  
+  tier                  Int?
+  level                 Int?
+  profileComplete       Boolean  @default(false)
+  profilePhotoUrl       String?
+  shortBio              String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  assignments          MentorMenteeAssignment[]
+  preferences          MenteePreference[]
+  matchingScores       MatchingScore[] @relation("MentorScores")
+  auditLogs            AuditLog[] @relation("MentorLogs")
+  mentoringSessions    MentoringSession[]
+
+  @@index([businessUnit])
+  @@index([currentMenteeCount])
+}
+
+model MenteePreference {
+  id              String   @id @default(cuid())
+  menteeId        String
+  mentee          Mentee   @relation(fields: [menteeId], references: [id], onDelete: Cascade)
+  
+  mentorId        String
+  mentor          Mentor   @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  
+  preferenceRank  Int
+  matchingScore   Float?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([menteeId, mentorId])
+  @@index([menteeId])
+  @@index([preferenceRank])
+}
+
+model MentorMenteeAssignment {
+  id              String   @id @default(cuid())
+  menteeId        String   @unique
+  mentee          Mentee   @relation(fields: [menteeId], references: [id], onDelete: Cascade)
+  
+  mentorId        String
+  mentor          Mentor   @relation(fields: [mentorId], references: [id])
+  
+  assignedByHrEmail String
+  assignmentReason  String?
+  isOverride       Boolean  @default(false)
+  originalSystemRank Int?
+  
+  status          String   @default("CONFIRMED")
+  menteeAccepted  Boolean  @default(false)
+  mentorAccepted  Boolean  @default(false)
+  
+  confirmedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  auditLogs       AuditLog[] @relation("AssignmentLogs")
+
+  @@index([mentorId])
+  @@index([status])
+}
+
+model MatchingScore {
+  id                          String   @id @default(cuid())
+  menteeId                    String
+  mentee                      Mentee   @relation("MenteeScores", fields: [menteeId], references: [id], onDelete: Cascade)
+  
+  mentorId                    String
+  mentor                      Mentor   @relation("MentorScores", fields: [mentorId], references: [id], onDelete: Cascade)
+  
+  competencyAlignmentScore    Float
+  experienceGapScore          Float
+  crossFunctionalScore        Float
+  careerAspirationScore       Float
+  leadershipStyleScore        Float
+  personalInterestsScore      Float
+  wildcardAlignmentScore      Float
+  availabilityFormatScore     Float
+  preferenceScore             Float
+  
+  totalScore                  Float
+  
+  calculatedAt                DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  
+  @@unique([menteeId, mentorId])
+  @@index([menteeId])
+  @@index([mentorId])
+  @@index([totalScore])
+}
+
+model AuditLog {
+  id                  String   @id @default(cuid())
+  
+  action              String
+  description         String
+  performedByEmail    String
+  
+  menteeId            String?
+  mentee              Mentee?  @relation("MenteeLogs", fields: [menteeId], references: [id], onDelete: SetNull)
+  
+  mentorId            String?
+  mentor              Mentor?  @relation("MentorLogs", fields: [mentorId], references: [id], onDelete: SetNull)
+  
+  assignmentId        String?
+  assignment          MentorMenteeAssignment? @relation("AssignmentLogs", fields: [assignmentId], references: [id], onDelete: SetNull)
+  
+  metadata            String?
+  
+  createdAt           DateTime @default(now())
+  
+  @@index([action])
+  @@index([performedByEmail])
+  @@index([menteeId])
+  @@index([mentorId])
+  @@index([createdAt])
+}
+
+enum SessionStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+}
+
+model MentoringSession {
+  id              String        @id @default(cuid())
+  
+  menteeId        String
+  mentee          Mentee        @relation(fields: [menteeId], references: [id], onDelete: Cascade)
+  
+  mentorId        String
+  mentor          Mentor        @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  
+  title           String
+  description     String?
+  scheduledDate   DateTime
+  scheduledTime   String
+  duration        Int           @default(60)
+  meetingFormat   PreferredMeetingFormat @default(VIRTUAL)
+  meetingLink     String?
+  location        String?
+  
+  status          SessionStatus @default(PENDING)
+  
+  menteeConfirmed Boolean       @default(false)
+  mentorConfirmed Boolean       @default(false)
+  sessionNotes    String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  @@index([menteeId])
+  @@index([mentorId])
+  @@index([scheduledDate])
+  @@index([status])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

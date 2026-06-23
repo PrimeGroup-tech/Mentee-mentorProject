@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.yarn/
+
+# Build
+.next/
+.build/
+.deploy/
+out/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Prisma
+prisma/*.db
+
+# Misc
+*.tgz

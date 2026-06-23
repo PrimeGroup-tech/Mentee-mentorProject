@@ -1,2 +1,0 @@
-# Mentee-mentorProject
-Mentee-mentor
