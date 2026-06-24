@@ -123,9 +123,7 @@ export async function GET(request: Request) {
               to: 'tobiloba.obadara@Primeatlanticnigeria.com',
               subject: `Mentor Profiles Report - ${new Date().toLocaleDateString()}`,
               html: htmlBody,
-            });      } else {
-        console.error('Email API error:', emailResult.message || 'Unknown error');
-      }
+            });
     } catch (emailError) {
       console.error('Failed to send email:', emailError);
     }
