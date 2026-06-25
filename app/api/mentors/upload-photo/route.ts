@@ -8,8 +8,6 @@ import { applyRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
-
-
 export async function POST(request: Request) {
   try {
     // Rate limit photo uploads
@@ -67,10 +65,13 @@ export async function POST(request: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Upload to Vercel Blob
-    const photoUrl = await uploadFile(fileName, buffer, file.type);
+    // Upload to Vercel Blob (private store)
+    const blobUrl = await uploadFile(fileName, buffer, file.type);
 
-    // Update mentor profile with photo URL
+    // Create a proxy URL that serves the private blob
+    const photoUrl = `/api/blob/serve?url=${encodeURIComponent(blobUrl)}`;
+
+    // Update mentor profile with proxy photo URL
     const mentor = await prisma.mentor.findUnique({
       where: { userId: user.id },
     });
