@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/mentoring_matching_system/nextjs_space/node_modules/.prisma/client"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
 }
 
 enum UserRole {
@@ -33,6 +35,8 @@ model User {
   name      String?
   password  String?
   role      UserRole   @default(MENTEE)
+  isActive  Boolean    @default(true)
+  hasDualRole Boolean  @default(false)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
@@ -272,17 +276,24 @@ model MentoringSession {
   title           String
   description     String?
   scheduledDate   DateTime
-  scheduledTime   String
-  duration        Int           @default(60)
+  scheduledTime   String        // e.g. "10:00 AM"
+  duration        Int           @default(60) // minutes
   meetingFormat   PreferredMeetingFormat @default(VIRTUAL)
   meetingLink     String?
   location        String?
   
   status          SessionStatus @default(PENDING)
   
+  // Confirmation fields
   menteeConfirmed Boolean       @default(false)
   mentorConfirmed Boolean       @default(false)
   sessionNotes    String?
+  
+  // Session feedback
+  sessionHeldMentee  Boolean?   // Mentee confirms session was held
+  sessionHeldMentor  Boolean?   // Mentor confirms session was held
+  menteeFeedback     String?    // Mentee's feedback on the session
+  mentorFeedback     String?    // Mentor's feedback on the session
   
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -300,4 +311,3 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
-

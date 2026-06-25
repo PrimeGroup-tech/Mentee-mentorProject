@@ -36,6 +36,8 @@ export default function MenteeSessionsPage() {
   const [success, setSuccess] = useState('');
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [confirmNotes, setConfirmNotes] = useState('');
+  const [sessionHeld, setSessionHeld] = useState(true);
+  const [feedbackText, setFeedbackText] = useState('');
 
   const [form, setForm] = useState({
     title: '',
@@ -101,11 +103,13 @@ export default function MenteeSessionsPage() {
       const res = await fetch(`/api/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'confirm_mentee', sessionNotes: confirmNotes }),
+        body: JSON.stringify({ action: 'confirm_mentee', sessionNotes: confirmNotes, sessionHeld, feedback: feedbackText }),
       });
       if (res.ok) {
         setConfirmingId(null);
         setConfirmNotes('');
+        setFeedbackText('');
+        setSessionHeld(true);
         fetchSessions();
       }
     } catch (err) {
@@ -118,11 +122,13 @@ export default function MenteeSessionsPage() {
       const res = await fetch(`/api/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'mark_complete', sessionNotes: confirmNotes }),
+        body: JSON.stringify({ action: 'mark_complete', sessionNotes: confirmNotes, sessionHeld, feedback: feedbackText }),
       });
       if (res.ok) {
         setConfirmingId(null);
         setConfirmNotes('');
+        setFeedbackText('');
+        setSessionHeld(true);
         setSuccess('Session marked as completed!');
         fetchSessions();
       }
@@ -306,16 +312,27 @@ export default function MenteeSessionsPage() {
                       <div className="flex gap-2 flex-shrink-0 ml-4">
                         {s.status === 'ACCEPTED' && (
                           confirmingId === s.id ? (
-                            <div className="space-y-2">
+                            <div className="space-y-2 w-56">
+                              <label className="flex items-center gap-2 text-xs">
+                                <input type="checkbox" checked={sessionHeld} onChange={(e) => setSessionHeld(e.target.checked)} className="rounded" />
+                                <span>Session was held</span>
+                              </label>
+                              <Textarea
+                                value={feedbackText}
+                                onChange={(e) => setFeedbackText(e.target.value)}
+                                placeholder="How did the session go? Share your feedback..."
+                                rows={3}
+                                className="text-xs"
+                              />
                               <Textarea
                                 value={confirmNotes}
                                 onChange={(e) => setConfirmNotes(e.target.value)}
-                                placeholder="Session notes (optional)"
+                                placeholder="Additional notes (optional)"
                                 rows={2}
-                                className="text-xs w-48"
+                                className="text-xs"
                               />
                               <div className="flex gap-2">
-                                <Button size="sm" variant="outline" onClick={() => setConfirmingId(null)}>Cancel</Button>
+                                <Button size="sm" variant="outline" onClick={() => { setConfirmingId(null); setFeedbackText(''); }}>Cancel</Button>
                                 <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleMarkComplete(s.id)}>
                                   <CheckCircle2 className="w-3.5 h-3.5 mr-1" />Complete
                                 </Button>
@@ -374,21 +391,27 @@ export default function MenteeSessionsPage() {
                           <span>{s.scheduledTime}</span>
                           <span>{s.duration} min</span>
                         </div>
-                        {s.sessionNotes && <p className="text-xs text-muted-foreground mt-2 bg-gray-50 p-2 rounded italic">{s.sessionNotes}</p>}
+                        {s.menteeFeedback && <p className="text-xs mt-2 bg-emerald-50 p-2 rounded"><strong>Your feedback:</strong> {s.menteeFeedback}</p>}
+                        {s.mentorFeedback && <p className="text-xs mt-1 bg-blue-50 p-2 rounded"><strong>Mentor feedback:</strong> {s.mentorFeedback}</p>}
+                        {s.sessionNotes && <p className="text-xs text-muted-foreground mt-1 bg-gray-50 p-2 rounded italic">{s.sessionNotes}</p>}
                       </div>
                       <div className="flex flex-col gap-2 flex-shrink-0 ml-4">
                         {(s.status === 'ACCEPTED' && !s.menteeConfirmed) && (
                           confirmingId === s.id ? (
-                            <div className="space-y-2">
+                            <div className="space-y-2 w-56">
+                              <label className="flex items-center gap-2 text-xs">
+                                <input type="checkbox" checked={sessionHeld} onChange={(e) => setSessionHeld(e.target.checked)} className="rounded" />
+                                <span>Session was held</span>
+                              </label>
                               <Textarea
-                                value={confirmNotes}
-                                onChange={(e) => setConfirmNotes(e.target.value)}
-                                placeholder="Session notes (optional)"
-                                rows={2}
-                                className="text-xs w-48"
+                                value={feedbackText}
+                                onChange={(e) => setFeedbackText(e.target.value)}
+                                placeholder="How did the session go? Share your feedback..."
+                                rows={3}
+                                className="text-xs"
                               />
                               <div className="flex gap-2">
-                                <Button size="sm" variant="outline" onClick={() => setConfirmingId(null)}>Cancel</Button>
+                                <Button size="sm" variant="outline" onClick={() => { setConfirmingId(null); setFeedbackText(''); }}>Cancel</Button>
                                 <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleConfirm(s.id)}>
                                   <CheckCircle2 className="w-3.5 h-3.5 mr-1" />Confirm
                                 </Button>

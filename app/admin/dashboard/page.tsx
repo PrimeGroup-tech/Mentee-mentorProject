@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Textarea } from '@/components/ui/textarea';
+
 import { FileSpreadsheet, Users, UserCheck, ClipboardList, Download, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { BrandedHeader } from '@/components/branded-header';
 import { StatCard } from '@/components/stat-card';
@@ -19,8 +19,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedMentee, setSelectedMentee] = useState<string | null>(null);
   const [selectedMentor, setSelectedMentor] = useState<string | null>(null);
-  const [reason, setReason] = useState('');
-  const [isOverride, setIsOverride] = useState(false);
+
+
   const [submitting, setSubmitting] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
 
@@ -96,15 +96,13 @@ export default function AdminDashboard() {
         body: JSON.stringify({
           menteeId: selectedMentee,
           mentorId: selectedMentor,
-          assignmentReason: reason,
-          isOverride,
+
         }),
       });
       if (res.ok) {
         setSelectedMentee(null);
         setSelectedMentor(null);
-        setReason('');
-        setIsOverride(false);
+
         const refreshRes = await fetch('/api/admin/submissions');
         if (refreshRes.ok) setSubmissions(await refreshRes.json());
       }
@@ -162,6 +160,8 @@ export default function AdminDashboard() {
                 { key: 'mentee-submissions', label: 'Mentee Submissions' },
                 { key: 'mentor-profiles', label: 'Mentor Profiles' },
                 { key: 'assignments', label: 'Assignments' },
+                { key: 'sessions', label: 'Sessions & Feedback' },
+                { key: 'users', label: 'Users Report' },
                 { key: 'audit-logs', label: 'Audit Logs' },
               ].map((report) => (
                 <Button
@@ -262,25 +262,7 @@ export default function AdminDashboard() {
                       </Select>
                     </div>
 
-                    <div>
-                      <label className="text-xs font-medium text-[hsl(216,70%,11%)]">Assignment Reason</label>
-                      <Textarea
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        placeholder="Optional reason..."
-                        className="text-sm mt-1"
-                      />
-                    </div>
 
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isOverride}
-                        onChange={(e) => setIsOverride(e.target.checked)}
-                        className="rounded border-gray-300"
-                      />
-                      <span className="text-muted-foreground">Override recommendation</span>
-                    </label>
 
                     <Button
                       onClick={handleConfirmAssignment}

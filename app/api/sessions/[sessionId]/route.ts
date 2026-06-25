@@ -48,7 +48,7 @@ export async function PATCH(
     }
 
     const data = await request.json();
-    const { action, sessionNotes } = data;
+    const { action, sessionNotes, sessionHeld, feedback } = data;
 
     const updateData: any = {};
     let auditAction = '';
@@ -87,6 +87,8 @@ export async function PATCH(
       case 'confirm_mentee':
         if (!isMentee) return NextResponse.json({ error: 'Only mentees can confirm as mentee' }, { status: 403 });
         updateData.menteeConfirmed = true;
+        if (typeof sessionHeld === 'boolean') updateData.sessionHeldMentee = sessionHeld;
+        if (feedback) updateData.menteeFeedback = sanitizeLongText(feedback);
         if (sessionNotes) updateData.sessionNotes = sessionNotes;
         auditAction = 'SESSION_CONFIRMED_MENTEE';
         auditDescription = `${user.name} confirmed session attendance: "${mentoringSession.title}"`;
@@ -100,6 +102,14 @@ export async function PATCH(
         updateData.status = 'COMPLETED';
         updateData.menteeConfirmed = true;
         updateData.mentorConfirmed = true;
+        if (typeof sessionHeld === 'boolean') {
+          if (isMentee) updateData.sessionHeldMentee = sessionHeld;
+          if (isMentor) updateData.sessionHeldMentor = sessionHeld;
+        }
+        if (feedback) {
+          if (isMentee) updateData.menteeFeedback = sanitizeLongText(feedback);
+          if (isMentor) updateData.mentorFeedback = sanitizeLongText(feedback);
+        }
         if (sessionNotes) updateData.sessionNotes = sessionNotes;
         auditAction = 'SESSION_COMPLETED';
         auditDescription = `${user.name} marked mentoring session as completed: "${mentoringSession.title}"`;
@@ -108,6 +118,8 @@ export async function PATCH(
       case 'confirm_mentor':
         if (!isMentor) return NextResponse.json({ error: 'Only mentors can confirm as mentor' }, { status: 403 });
         updateData.mentorConfirmed = true;
+        if (typeof sessionHeld === 'boolean') updateData.sessionHeldMentor = sessionHeld;
+        if (feedback) updateData.mentorFeedback = sanitizeLongText(feedback);
         if (sessionNotes) updateData.sessionNotes = mentoringSession.sessionNotes
           ? `${mentoringSession.sessionNotes}\n---\nMentor notes: ${sessionNotes}`
           : `Mentor notes: ${sessionNotes}`;

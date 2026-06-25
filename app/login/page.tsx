@@ -174,7 +174,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="text-white/30 text-xs">
+          <div className="text-white/60 text-xs">
             © {new Date().getFullYear()} Prime Atlantic Limited. All rights reserved.
           </div>
         </div>

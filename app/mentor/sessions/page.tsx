@@ -31,6 +31,8 @@ export default function MentorSessionsPage() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [confirmNotes, setConfirmNotes] = useState('');
   const [confirmAction, setConfirmAction] = useState<string>('mark_complete');
+  const [sessionHeld, setSessionHeld] = useState(true);
+  const [feedbackText, setFeedbackText] = useState('');
 
   useEffect(() => {
     fetchSessions();
@@ -52,11 +54,13 @@ export default function MentorSessionsPage() {
       const res = await fetch(`/api/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, sessionNotes: notes }),
+        body: JSON.stringify({ action, sessionNotes: notes, sessionHeld, feedback: feedbackText }),
       });
       if (res.ok) {
         setConfirmingId(null);
         setConfirmNotes('');
+        setFeedbackText('');
+        setSessionHeld(true);
         fetchSessions();
       }
     } catch (err) {
@@ -164,20 +168,31 @@ export default function MentorSessionsPage() {
                     </div>
                     <div className="flex flex-col gap-2 flex-shrink-0 ml-4">
                       {confirmingId === s.id ? (
-                        <div className="space-y-2">
+                        <div className="space-y-2 w-64">
                           <div className="flex gap-2 mb-1">
-                            <Button size="sm" variant={confirmAction === 'mark_complete' ? 'default' : 'outline'} className={confirmAction === 'mark_complete' ? 'bg-emerald-600 hover:bg-emerald-700 text-white text-xs' : 'text-xs'} onClick={() => setConfirmAction('mark_complete')}>Conducted</Button>
-                            <Button size="sm" variant={confirmAction === 'cancel' ? 'default' : 'outline'} className={confirmAction === 'cancel' ? 'bg-red-600 hover:bg-red-700 text-white text-xs' : 'text-xs'} onClick={() => setConfirmAction('cancel')}>Not Held</Button>
+                            <Button size="sm" variant={confirmAction === 'mark_complete' ? 'default' : 'outline'} className={confirmAction === 'mark_complete' ? 'bg-emerald-600 hover:bg-emerald-700 text-white text-xs' : 'text-xs'} onClick={() => { setConfirmAction('mark_complete'); setSessionHeld(true); }}>Conducted</Button>
+                            <Button size="sm" variant={confirmAction === 'cancel' ? 'default' : 'outline'} className={confirmAction === 'cancel' ? 'bg-red-600 hover:bg-red-700 text-white text-xs' : 'text-xs'} onClick={() => { setConfirmAction('cancel'); setSessionHeld(false); }}>Not Held</Button>
                           </div>
+                          <label className="flex items-center gap-2 text-xs">
+                            <input type="checkbox" checked={sessionHeld} onChange={(e) => setSessionHeld(e.target.checked)} className="rounded" />
+                            <span>Session was held</span>
+                          </label>
+                          <Textarea
+                            value={feedbackText}
+                            onChange={(e) => setFeedbackText(e.target.value)}
+                            placeholder="How did the session go? Share your feedback..."
+                            rows={3}
+                            className="text-xs"
+                          />
                           <Textarea
                             value={confirmNotes}
                             onChange={(e) => setConfirmNotes(e.target.value)}
-                            placeholder={confirmAction === 'mark_complete' ? 'Session notes / comments...' : 'Reason session was not held...'}
+                            placeholder={confirmAction === 'mark_complete' ? 'Additional notes (optional)...' : 'Reason session was not held...'}
                             rows={2}
-                            className="text-xs w-56"
+                            className="text-xs"
                           />
                           <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => { setConfirmingId(null); setConfirmAction('mark_complete'); }}>Back</Button>
+                            <Button size="sm" variant="outline" onClick={() => { setConfirmingId(null); setConfirmAction('mark_complete'); setFeedbackText(''); }}>Back</Button>
                             <Button size="sm" className={confirmAction === 'mark_complete' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'} onClick={() => handleAction(s.id, confirmAction, confirmNotes)}>
                               {confirmAction === 'mark_complete' ? <><CheckCircle2 className="w-3.5 h-3.5 mr-1" />Confirm</> : <><XCircle className="w-3.5 h-3.5 mr-1" />Cancel Session</>}
                             </Button>
@@ -223,7 +238,9 @@ export default function MentorSessionsPage() {
                       {s.mentorConfirmed && <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">You confirmed</span>}
                     </div>
                     <p className="text-sm text-muted-foreground">with {s.mentee?.user?.name} • {new Date(s.scheduledDate).toLocaleDateString('en-GB')}</p>
-                    {s.sessionNotes && <p className="text-xs text-muted-foreground mt-2 bg-gray-50 p-2 rounded italic">{s.sessionNotes}</p>}
+                    {s.mentorFeedback && <p className="text-xs mt-2 bg-blue-50 p-2 rounded"><strong>Your feedback:</strong> {s.mentorFeedback}</p>}
+                    {s.menteeFeedback && <p className="text-xs mt-1 bg-emerald-50 p-2 rounded"><strong>Mentee feedback:</strong> {s.menteeFeedback}</p>}
+                    {s.sessionNotes && <p className="text-xs text-muted-foreground mt-1 bg-gray-50 p-2 rounded italic">{s.sessionNotes}</p>}
                   </CardContent>
                 </Card>
               );

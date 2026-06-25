@@ -173,35 +173,47 @@ export default function MentorProfilePage() {
   }, []);
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      setError('Invalid file type. Only JPEG, PNG, and WebP are allowed.');
-      return;
-    }
     const maxSize = 5 * 1024 * 1024;
-    if (file.size > maxSize) {
-      setError('File size too large. Maximum size is 5MB.');
-      return;
+
+    // Validate all files first
+    for (let i = 0; i < files.length; i++) {
+      if (!allowedTypes.includes(files[i].type)) {
+        setError(`Invalid file type for ${files[i].name}. Only JPEG, PNG, and WebP are allowed.`);
+        return;
+      }
+      if (files[i].size > maxSize) {
+        setError(`File ${files[i].name} is too large. Maximum size is 5MB.`);
+        return;
+      }
     }
+
+    // Preview the last file
+    const lastFile = files[files.length - 1];
     const reader = new FileReader();
     reader.onloadend = () => setPhotoPreview(reader.result as string);
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(lastFile);
 
     setUploading(true);
     setError('');
     try {
-      const fd = new FormData();
-      fd.append('photo', file);
-      const res = await fetch('/api/mentors/upload-photo', { method: 'POST', body: fd });
-      if (res.ok) {
-        const data = await res.json();
-        setProfilePhotoUrl(data.photoUrl);
-        setPhotoPreview(null);
-      } else {
-        const errorData = await res.json();
-        setError(errorData.error || 'Failed to upload photo');
+      let lastUrl = '';
+      for (let i = 0; i < files.length; i++) {
+        const fd = new FormData();
+        fd.append('photo', files[i]);
+        const res = await fetch('/api/mentors/upload-photo', { method: 'POST', body: fd });
+        if (res.ok) {
+          const data = await res.json();
+          lastUrl = data.photoUrl;
+        } else {
+          const errorData = await res.json();
+          setError(errorData.error || `Failed to upload ${files[i].name}`);
+        }
+      }
+      if (lastUrl) {
+        setProfilePhotoUrl(lastUrl);
         setPhotoPreview(null);
       }
     } catch (err) {
@@ -322,7 +334,7 @@ export default function MentorProfilePage() {
                   )}
                 </div>
                 <div>
-                  <input type="file" id="photo-upload" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handlePhotoChange} className="hidden" disabled={uploading} />
+                  <input type="file" id="photo-upload" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handlePhotoChange} className="hidden" disabled={uploading} multiple />
                   <Button
                     type="button"
                     variant="outline"

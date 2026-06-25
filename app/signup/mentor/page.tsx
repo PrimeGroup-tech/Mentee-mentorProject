@@ -154,13 +154,13 @@ export default function MentorSignupPage() {
                 <Building2 className="w-5 h-5 text-[#FF6F2B]" />
                 <div>
                   <p className="text-white/80 text-sm font-medium">Company Email Required</p>
-                  <p className="text-white/40 text-xs mt-0.5">Only Prime Atlantic Group email addresses are accepted</p>
+                  <p className="text-white/70 text-xs mt-0.5">Only Prime Atlantic Group email addresses are accepted</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="text-white/30 text-xs">
+          <div className="text-white/60 text-xs">
             © {new Date().getFullYear()} Prime Atlantic Limited. All rights reserved.
           </div>
         </div>

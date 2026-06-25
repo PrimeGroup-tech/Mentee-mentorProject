@@ -7,6 +7,8 @@ export const ALLOWED_DOMAINS = [
   'synerpetnigeria.com',
   'waelng.com',
   'weston-integrated.com',
+  'milesquarepetroleumresources.com',
+  'pacenigeria.com',
 ];
 
 export function isAllowedDomain(email: string): boolean {
