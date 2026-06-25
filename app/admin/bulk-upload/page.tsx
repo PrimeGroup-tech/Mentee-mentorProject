@@ -3,7 +3,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { BrandedHeader } from '@/components/branded-header';
 import {
   Download, Upload, FileSpreadsheet, Users, GraduationCap,
-  CheckCircle2, XCircle, AlertTriangle, Image as ImageIcon, Loader2,
+  CheckCircle2, XCircle, AlertTriangle, Image as ImageIcon, Loader2, Trash2, Plus,
 } from 'lucide-react';
 
 interface UploadResult {
@@ -20,6 +20,64 @@ interface UploadResult {
   email: string;
   status: 'created' | 'skipped' | 'error';
   message: string;
+}
+
+interface PhotoEntry {
+  id: string;
+  email: string;
+  file: File | null;
+  preview: string;
+  status: 'pending' | 'uploading' | 'success' | 'error';
+  message?: string;
+}
+
+// Resize image client-side if it exceeds maxSizeBytes
+async function resizeImage(file: File, maxSizeBytes: number, maxDimension = 1200): Promise<File> {
+  if (file.size <= maxSizeBytes) return file;
+
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      let { width, height } = img;
+
+      // Scale down to maxDimension
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Try quality levels until under maxSizeBytes
+      let quality = 0.8;
+      const tryCompress = () => {
+        canvas.toBlob(
+          (blob) => {
+            if (blob && (blob.size <= maxSizeBytes || quality <= 0.3)) {
+              const resizedFile = new File([blob], file.name, { type: 'image/jpeg' });
+              resolve(resizedFile);
+            } else {
+              quality -= 0.1;
+              tryCompress();
+            }
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      tryCompress();
+    };
+    img.src = URL.createObjectURL(file);
+  });
 }
 
 export default function BulkUploadPage() {
@@ -34,12 +92,12 @@ export default function BulkUploadPage() {
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Photo upload state
-  const [photoEmail, setPhotoEmail] = useState('');
-  const [photoUploading, setPhotoUploading] = useState(false);
-  const [photoMessage, setPhotoMessage] = useState({ type: '', text: '' });
+  // Multi-photo upload state
+  const [photoEntries, setPhotoEntries] = useState<PhotoEntry[]>([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState({ type: '', text: '' });
   const [uploadedPhotos, setUploadedPhotos] = useState<{ email: string; url: string }[]>([]);
-  const photoRef = useRef<HTMLInputElement>(null);
+  const multiPhotoRef = useRef<HTMLInputElement>(null);
 
   const handleDownloadTemplate = async (type: 'mentor' | 'mentee') => {
     try {
@@ -49,20 +107,16 @@ export default function BulkUploadPage() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${type}_upload_template.xlsx`;
-        document.body.appendChild(a);
+        a.download = `${type}_template.xlsx`;
         a.click();
-        document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
-      } else {
-        setError('Failed to download template');
       }
     } catch (err) {
-      setError('Error downloading template');
+      setError('Failed to download template');
     }
   };
 
-  const handleFileUpload = async () => {
+  const handleUpload = async () => {
     if (!fileRef.current?.files?.[0] || !uploadType) return;
 
     const file = fileRef.current.files[0];
@@ -84,8 +138,8 @@ export default function BulkUploadPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setResults(data.results);
-        setSummary(data.summary);
+        setResults(data.results || []);
+        setSummary(data.summary || null);
       } else {
         setError(data.error || 'Upload failed');
       }
@@ -96,38 +150,128 @@ export default function BulkUploadPage() {
     }
   };
 
-  const handlePhotoUpload = async () => {
-    if (!photoRef.current?.files?.[0] || !photoEmail) return;
+  // Add a new empty photo entry row
+  const addPhotoEntry = () => {
+    setPhotoEntries(prev => [...prev, {
+      id: Math.random().toString(36).substr(2, 9),
+      email: '',
+      file: null,
+      preview: '',
+      status: 'pending',
+    }]);
+  };
 
-    const file = photoRef.current.files[0];
-    setPhotoUploading(true);
-    setPhotoMessage({ type: '', text: '' });
+  // Update email for a photo entry
+  const updateEntryEmail = (id: string, email: string) => {
+    setPhotoEntries(prev => prev.map(e => e.id === id ? { ...e, email } : e));
+  };
 
-    try {
-      const formData = new FormData();
-      formData.append('photo', file);
-      formData.append('email', photoEmail.trim());
+  // Set file for a photo entry
+  const updateEntryFile = (id: string, file: File | null) => {
+    const preview = file ? URL.createObjectURL(file) : '';
+    setPhotoEntries(prev => prev.map(e => e.id === id ? { ...e, file, preview } : e));
+  };
 
-      const res = await fetch('/api/admin/bulk-upload/photos', {
-        method: 'POST',
-        body: formData,
-      });
+  // Remove a photo entry
+  const removeEntry = (id: string) => {
+    setPhotoEntries(prev => {
+      const entry = prev.find(e => e.id === id);
+      if (entry?.preview) URL.revokeObjectURL(entry.preview);
+      return prev.filter(e => e.id !== id);
+    });
+  };
 
-      const data = await res.json();
+  // Handle bulk file selection — auto-creates entries
+  const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-      if (res.ok) {
-        setPhotoMessage({ type: 'success', text: `Photo uploaded for ${photoEmail}` });
-        setUploadedPhotos(prev => [...prev, { email: photoEmail, url: data.photoUrl }]);
-        setPhotoEmail('');
-        if (photoRef.current) photoRef.current.value = '';
-      } else {
-        setPhotoMessage({ type: 'error', text: data.error || 'Upload failed' });
+    const newEntries: PhotoEntry[] = files.map(file => {
+      // Try to extract email from filename (e.g., john@company.com.jpg)
+      const nameWithoutExt = file.name.replace(/\.(jpeg|jpg|png|webp)$/i, '');
+      const isEmail = /^[^@]+@[^@]+\.[^@]+$/.test(nameWithoutExt);
+
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        email: isEmail ? nameWithoutExt.toLowerCase() : '',
+        file,
+        preview: URL.createObjectURL(file),
+        status: 'pending' as const,
+      };
+    });
+
+    setPhotoEntries(prev => [...prev, ...newEntries]);
+    if (multiPhotoRef.current) multiPhotoRef.current.value = '';
+  };
+
+  // Upload all entries
+  const handleBulkUpload = async () => {
+    const validEntries = photoEntries.filter(e => e.file && e.email);
+    if (validEntries.length === 0) return;
+
+    setBulkUploading(true);
+    setBulkMessage({ type: '', text: '' });
+
+    // Mark all as uploading
+    setPhotoEntries(prev => prev.map(e =>
+      validEntries.find(v => v.id === e.id) ? { ...e, status: 'uploading' } : e
+    ));
+
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+
+    // Upload one by one (more reliable than bulk FormData for large files)
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const entry of validEntries) {
+      try {
+        // Auto-resize if over 5MB
+        const resizedFile = await resizeImage(entry.file!, MAX_SIZE);
+
+        const formData = new FormData();
+        formData.append('photo', resizedFile);
+        formData.append('email', entry.email.trim());
+
+        const res = await fetch('/api/admin/bulk-upload/photos', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          successCount++;
+          setPhotoEntries(prev => prev.map(e =>
+            e.id === entry.id ? { ...e, status: 'success', message: 'Uploaded' } : e
+          ));
+          setUploadedPhotos(prev => [...prev, { email: entry.email, url: data.photoUrl }]);
+        } else {
+          failCount++;
+          setPhotoEntries(prev => prev.map(e =>
+            e.id === entry.id ? { ...e, status: 'error', message: data.error || 'Failed' } : e
+          ));
+        }
+      } catch (err) {
+        failCount++;
+        setPhotoEntries(prev => prev.map(e =>
+          e.id === entry.id ? { ...e, status: 'error', message: 'Network error' } : e
+        ));
       }
-    } catch (err) {
-      setPhotoMessage({ type: 'error', text: 'Network error' });
-    } finally {
-      setPhotoUploading(false);
     }
+
+    setBulkMessage({
+      type: failCount === 0 ? 'success' : 'warning',
+      text: `Uploaded ${successCount} of ${validEntries.length} photos${failCount > 0 ? ` (${failCount} failed)` : ''}`,
+    });
+    setBulkUploading(false);
+  };
+
+  // Clear completed entries
+  const clearCompleted = () => {
+    setPhotoEntries(prev => {
+      prev.filter(e => e.status === 'success').forEach(e => { if (e.preview) URL.revokeObjectURL(e.preview); });
+      return prev.filter(e => e.status !== 'success');
+    });
   };
 
   return (
@@ -141,175 +285,123 @@ export default function BulkUploadPage() {
           </Alert>
         )}
 
-        {/* Step 1: Download Templates */}
+        {/* Step 1: Download Template */}
         <Card className="border-0 shadow-sm">
-          <CardHeader className="bg-gradient-to-r from-[#00458E] to-[#0C4DA2] text-white rounded-t-xl">
+          <CardHeader className="bg-gradient-to-r from-[#0C4DA2] to-[#00458E] text-white rounded-t-xl">
             <CardTitle className="flex items-center gap-2">
-              <Download className="w-5 h-5" />
-              Step 1: Download Templates
+              <FileSpreadsheet className="w-5 h-5" />
+              Step 1: Download Template
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
             <p className="text-sm text-muted-foreground mb-4">
-              Download the Excel template, fill in the data following the instructions sheet, then upload the completed file.
+              Download the Excel template and fill in the required information.
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
                 onClick={() => handleDownloadTemplate('mentor')}
-                className="flex items-center gap-4 p-4 rounded-lg border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 transition-all text-left"
+                className="flex items-center gap-2"
               >
-                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <Users className="w-6 h-6 text-blue-700" />
-                </div>
-                <div>
-                  <p className="font-semibold text-blue-900">Mentor Template</p>
-                  <p className="text-xs text-blue-600">Includes: name, email, expertise, leadership style, tier, level & more</p>
-                </div>
-                <Download className="w-5 h-5 text-blue-500 ml-auto flex-shrink-0" />
-              </button>
-
-              <button
+                <Download className="w-4 h-4" />
+                <GraduationCap className="w-4 h-4" />
+                Mentor Template
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => handleDownloadTemplate('mentee')}
-                className="flex items-center gap-4 p-4 rounded-lg border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300 transition-all text-left"
+                className="flex items-center gap-2"
               >
-                <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <GraduationCap className="w-6 h-6 text-emerald-700" />
-                </div>
-                <div>
-                  <p className="font-semibold text-emerald-900">Mentee Template</p>
-                  <p className="text-xs text-emerald-600">Includes: name, email, competency gaps, career goals, interests & more</p>
-                </div>
-                <Download className="w-5 h-5 text-emerald-500 ml-auto flex-shrink-0" />
-              </button>
+                <Download className="w-4 h-4" />
+                <Users className="w-4 h-4" />
+                Mentee Template
+              </Button>
             </div>
           </CardContent>
         </Card>
 
         {/* Step 2: Upload Data */}
         <Card className="border-0 shadow-sm">
-          <CardHeader className="bg-gradient-to-r from-[#FF6F2B] to-[#e85d1a] text-white rounded-t-xl">
+          <CardHeader className="bg-gradient-to-r from-[#0C4DA2] to-[#00458E] text-white rounded-t-xl">
             <CardTitle className="flex items-center gap-2">
               <Upload className="w-5 h-5" />
               Step 2: Upload Data
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="space-y-4">
-              {/* Upload type selection */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">What are you uploading?</label>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => { setUploadType('mentor'); setResults(null); setSummary(null); }}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all font-medium ${
-                      uploadType === 'mentor'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-200 hover:border-blue-300 text-gray-600'
-                    }`}
-                  >
-                    <Users className="w-4 h-4" />
-                    Mentor Data
-                  </button>
-                  <button
-                    onClick={() => { setUploadType('mentee'); setResults(null); setSummary(null); }}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all font-medium ${
-                      uploadType === 'mentee'
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                        : 'border-gray-200 hover:border-emerald-300 text-gray-600'
-                    }`}
-                  >
-                    <GraduationCap className="w-4 h-4" />
-                    Mentee Data
-                  </button>
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <select
+                value={uploadType || ''}
+                onChange={(e) => setUploadType(e.target.value as 'mentor' | 'mentee')}
+                className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00458E]"
+              >
+                <option value="">Select upload type...</option>
+                <option value="mentor">Mentor Data</option>
+                <option value="mentee">Mentee Data</option>
+              </select>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="text-sm text-gray-500 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 file:cursor-pointer"
+              />
+              <Button
+                onClick={handleUpload}
+                disabled={uploading || !uploadType}
+                className="bg-[#0C4DA2] hover:bg-[#00458E] text-white"
+              >
+                {uploading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <span className="flex items-center gap-2"><Upload className="w-4 h-4" />Upload</span>
+                )}
+              </Button>
+            </div>
+
+            {summary && (
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <div className="flex gap-4 text-sm">
+                  <Badge className="bg-green-100 text-green-700"><CheckCircle2 className="w-3 h-3 mr-1" />{summary.created || 0} Created</Badge>
+                  <Badge className="bg-yellow-100 text-yellow-700"><AlertTriangle className="w-3 h-3 mr-1" />{summary.skipped || 0} Skipped</Badge>
+                  <Badge className="bg-red-100 text-red-700"><XCircle className="w-3 h-3 mr-1" />{summary.errors || 0} Errors</Badge>
                 </div>
               </div>
+            )}
 
-              {/* File input */}
-              {uploadType && (
-                <div className="space-y-3">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                    <FileSpreadsheet className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground mb-2">Select your completed <strong>{uploadType}</strong> Excel file (.xlsx)</p>
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept=".xlsx,.xls"
-                      className="block mx-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#00458E] file:text-white hover:file:bg-[#003670] file:cursor-pointer"
-                    />
-                  </div>
-                  <Button
-                    onClick={handleFileUpload}
-                    disabled={uploading}
-                    className="w-full bg-[#00458E] hover:bg-[#003670] text-white"
-                  >
-                    {uploading ? (
-                      <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Processing Upload...</span>
-                    ) : (
-                      <span className="flex items-center gap-2"><Upload className="w-4 h-4" />Upload {uploadType === 'mentor' ? 'Mentor' : 'Mentee'} Data</span>
-                    )}
-                  </Button>
-                </div>
-              )}
-
-              {/* Results */}
-              {summary && (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-3">
-                    <Badge className="bg-gray-100 text-gray-800 border-gray-200 px-3 py-1 text-sm">
-                      Total: {summary.total}
-                    </Badge>
-                    <Badge className="bg-green-100 text-green-800 border-green-200 px-3 py-1 text-sm">
-                      <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                      Created: {summary.created}
-                    </Badge>
-                    <Badge className="bg-amber-100 text-amber-800 border-amber-200 px-3 py-1 text-sm">
-                      <AlertTriangle className="w-3.5 h-3.5 mr-1" />
-                      Skipped: {summary.skipped}
-                    </Badge>
-                    <Badge className="bg-red-100 text-red-800 border-red-200 px-3 py-1 text-sm">
-                      <XCircle className="w-3.5 h-3.5 mr-1" />
-                      Errors: {summary.errors}
-                    </Badge>
-                  </div>
-
-                  <div className="max-h-64 overflow-y-auto border rounded-lg">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 sticky top-0">
-                        <tr>
-                          <th className="px-3 py-2 text-left">Row</th>
-                          <th className="px-3 py-2 text-left">Name</th>
-                          <th className="px-3 py-2 text-left">Email</th>
-                          <th className="px-3 py-2 text-left">Status</th>
-                          <th className="px-3 py-2 text-left">Message</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {results?.map((r, idx) => (
-                          <tr key={idx} className={`border-t ${
-                            r.status === 'created' ? 'bg-green-50/50' :
-                            r.status === 'skipped' ? 'bg-amber-50/50' : 'bg-red-50/50'
-                          }`}>
-                            <td className="px-3 py-2">{r.row}</td>
-                            <td className="px-3 py-2 font-medium">{r.name}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{r.email}</td>
-                            <td className="px-3 py-2">
-                              {r.status === 'created' && <Badge className="bg-green-100 text-green-700 text-xs">Created</Badge>}
-                              {r.status === 'skipped' && <Badge className="bg-amber-100 text-amber-700 text-xs">Skipped</Badge>}
-                              {r.status === 'error' && <Badge className="bg-red-100 text-red-700 text-xs">Error</Badge>}
-                            </td>
-                            <td className="px-3 py-2 text-xs text-muted-foreground">{r.message}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
+            {results && results.length > 0 && (
+              <div className="max-h-60 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b">
+                      <th className="pb-2">Row</th>
+                      <th className="pb-2">Name</th>
+                      <th className="pb-2">Email</th>
+                      <th className="pb-2">Status</th>
+                      <th className="pb-2">Message</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.map((r, i) => (
+                      <tr key={i} className="border-b">
+                        <td className="py-1.5">{r.row}</td>
+                        <td className="py-1.5">{r.name}</td>
+                        <td className="py-1.5">{r.email}</td>
+                        <td className="py-1.5">
+                          {r.status === 'created' && <Badge className="bg-green-100 text-green-700">Created</Badge>}
+                          {r.status === 'skipped' && <Badge className="bg-yellow-100 text-yellow-700">Skipped</Badge>}
+                          {r.status === 'error' && <Badge className="bg-red-100 text-red-700">Error</Badge>}
+                        </td>
+                        <td className="py-1.5 text-muted-foreground">{r.message}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Step 3: Upload Mentor Photos */}
+        {/* Step 3: Upload Mentor Photos (Multiple) */}
         <Card className="border-0 shadow-sm">
           <CardHeader className="bg-gradient-to-r from-[#0C4DA2] to-[#00458E] text-white rounded-t-xl">
             <CardTitle className="flex items-center gap-2">
@@ -318,43 +410,128 @@ export default function BulkUploadPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground mb-4">
-              After uploading mentor data, you can add profile photos one at a time by entering the mentor's email and selecting their photo.
+            <p className="text-sm text-muted-foreground mb-2">
+              Upload photos for multiple mentors at once. Add entries below and assign each photo to a mentor email.
+            </p>
+            <p className="text-xs text-muted-foreground mb-4">
+              <strong>Tip:</strong> Name your files as the mentor&apos;s email (e.g. <code>john@company.com.jpg</code>) and they will be auto-matched. Images over 5MB are automatically compressed.
             </p>
 
-            {photoMessage.text && (
-              <Alert variant={photoMessage.type === 'error' ? 'destructive' : 'default'} className={`mb-4 ${photoMessage.type === 'success' ? 'border-green-500 bg-green-50 text-green-800' : ''}`}>
-                <AlertDescription>{photoMessage.text}</AlertDescription>
+            {bulkMessage.text && (
+              <Alert variant={bulkMessage.type === 'error' ? 'destructive' : 'default'} className={`mb-4 ${bulkMessage.type === 'success' ? 'border-green-500 bg-green-50 text-green-800' : bulkMessage.type === 'warning' ? 'border-yellow-500 bg-yellow-50 text-yellow-800' : ''}`}>
+                <AlertDescription>{bulkMessage.text}</AlertDescription>
               </Alert>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-3">
+            {/* Bulk file selector */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
               <input
-                type="email"
-                placeholder="Mentor's email address"
-                value={photoEmail}
-                onChange={(e) => setPhotoEmail(e.target.value)}
-                className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00458E]"
-              />
-              <input
-                ref={photoRef}
+                ref={multiPhotoRef}
                 type="file"
                 accept="image/jpeg,image/jpg,image/png,image/webp"
-                className="text-sm text-gray-500 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 file:cursor-pointer"
+                multiple
+                onChange={handleBulkFileSelect}
+                className="flex-1 text-sm text-gray-500 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 file:cursor-pointer"
               />
-              <Button
-                onClick={handlePhotoUpload}
-                disabled={photoUploading || !photoEmail}
-                className="bg-[#0C4DA2] hover:bg-[#00458E] text-white"
-              >
-                {photoUploading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <span className="flex items-center gap-2"><Upload className="w-4 h-4" />Upload Photo</span>
-                )}
+              <Button variant="outline" onClick={addPhotoEntry} className="flex items-center gap-2">
+                <Plus className="w-4 h-4" /> Add Entry Manually
               </Button>
             </div>
 
+            {/* Photo entries list */}
+            {photoEntries.length > 0 && (
+              <div className="space-y-3 mb-4">
+                {photoEntries.map((entry) => (
+                  <div key={entry.id} className={`flex items-center gap-3 p-3 rounded-lg border ${
+                    entry.status === 'success' ? 'bg-green-50 border-green-200' :
+                    entry.status === 'error' ? 'bg-red-50 border-red-200' :
+                    entry.status === 'uploading' ? 'bg-blue-50 border-blue-200' :
+                    'bg-gray-50 border-gray-200'
+                  }`}>
+                    {/* Preview */}
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                      {entry.preview ? (
+                        <img src={entry.preview} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <ImageIcon className="w-5 h-5" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Email input */}
+                    <input
+                      type="email"
+                      placeholder="mentor@company.com"
+                      value={entry.email}
+                      onChange={(e) => updateEntryEmail(entry.id, e.target.value)}
+                      disabled={entry.status === 'uploading' || entry.status === 'success'}
+                      className="flex-1 px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00458E] disabled:opacity-50"
+                    />
+
+                    {/* File picker for manual entries */}
+                    {!entry.file && (
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/webp"
+                        onChange={(e) => updateEntryFile(entry.id, e.target.files?.[0] || null)}
+                        className="text-xs w-32 text-gray-500"
+                      />
+                    )}
+
+                    {/* File name display */}
+                    {entry.file && (
+                      <span className="text-xs text-muted-foreground truncate max-w-[120px]" title={entry.file.name}>
+                        {entry.file.name}
+                      </span>
+                    )}
+
+                    {/* Status indicator */}
+                    {entry.status === 'success' && <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />}
+                    {entry.status === 'error' && (
+                      <span className="text-xs text-red-600 flex-shrink-0 max-w-[150px] truncate" title={entry.message}>
+                        {entry.message}
+                      </span>
+                    )}
+                    {entry.status === 'uploading' && <Loader2 className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />}
+
+                    {/* Remove button */}
+                    {entry.status !== 'uploading' && (
+                      <button onClick={() => removeEntry(entry.id)} className="text-gray-400 hover:text-red-500 flex-shrink-0">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Action buttons */}
+            {photoEntries.length > 0 && (
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleBulkUpload}
+                  disabled={bulkUploading || photoEntries.filter(e => e.file && e.email && e.status === 'pending').length === 0}
+                  className="bg-[#0C4DA2] hover:bg-[#00458E] text-white"
+                >
+                  {bulkUploading ? (
+                    <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Upload className="w-4 h-4" />
+                      Upload All ({photoEntries.filter(e => e.file && e.email && e.status === 'pending').length})
+                    </span>
+                  )}
+                </Button>
+                {photoEntries.some(e => e.status === 'success') && (
+                  <Button variant="outline" onClick={clearCompleted}>
+                    Clear Completed
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Previously uploaded photos */}
             {uploadedPhotos.length > 0 && (
               <div className="mt-4">
                 <p className="text-sm font-medium mb-2">Uploaded Photos:</p>
