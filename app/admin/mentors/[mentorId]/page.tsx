@@ -146,8 +146,8 @@ export default function AdminEditMentorPage() {
       setError('Invalid file type. Only JPEG, PNG, and WebP are allowed.');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('File size too large. Maximum 5MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size too large. Maximum 10MB.');
       return;
     }
 
@@ -275,7 +275,7 @@ export default function AdminEditMentorPage() {
                   <Upload className="w-4 h-4 mr-2" />
                   {profilePhotoUrl || photoPreview ? 'Change Photo' : 'Upload Photo'}
                 </Button>
-                <p className="text-xs text-muted-foreground mt-2">JPG, PNG or WebP. Max 5MB.</p>
+                <p className="text-xs text-muted-foreground mt-2">JPG, PNG or WebP. Max 10MB.</p>
                 {photoFile && (
                   <p className="text-xs text-primary mt-1">New photo selected — will upload on save.</p>
                 )}
