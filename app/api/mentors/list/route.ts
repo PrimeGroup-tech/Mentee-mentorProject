@@ -47,7 +47,6 @@ export async function GET(request: Request) {
       maxMentees: mentor.maxMentees,
       personalInterests: mentor.personalInterests,
       shadowSkills: mentor.shadowSkills,
-      organizationalChallenge: mentor.organizationalChallenge,
       coachingGoals: mentor.coachingGoals,
       commitmentAvailability: mentor.commitmentAvailability,
       tier: mentor.tier,
