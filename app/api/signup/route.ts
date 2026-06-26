@@ -4,6 +4,9 @@ import { prisma } from '@/lib/prisma';
 import { isAllowedDomain, getAllowedDomainsDisplay } from '@/lib/allowed-domains';
 import { sanitizeString, sanitizeEmail } from '@/lib/security';
 import { applyRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
+import { signupSchema, AUTH_ERRORS } from '@/lib/auth-schemas';
+
+const BCRYPT_ROUNDS = 12;
 
 export async function POST(request: Request) {
   try {
@@ -12,24 +15,21 @@ export async function POST(request: Request) {
     if (rateLimitResp) return rateLimitResp;
 
     const body = await request.json();
-    const email = sanitizeEmail(body.email);
-    const password = body.password ? String(body.password) : '';
-    const name = sanitizeString(body.name);
-    const role = body.role;
-
-    if (!email || !password) {
+    
+    // Zod validation
+    const parsed = signupSchema.safeParse(body);
+    if (!parsed.success) {
+      console.error('[signup] Validation failure:', parsed.error.issues.map(i => i.path.join('.')));
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: AUTH_ERRORS.VALIDATION_FAILED },
         { status: 400 }
       );
     }
 
-    if (password.length > 128) {
-      return NextResponse.json(
-        { error: 'Password is too long' },
-        { status: 400 }
-      );
-    }
+    const email = parsed.data.email;
+    const password = parsed.data.password;
+    const name = sanitizeString(parsed.data.name || '');
+    const role = parsed.data.role;
 
     const userRole = role === 'MENTOR' ? 'MENTOR' : 'MENTEE';
 
@@ -50,23 +50,24 @@ export async function POST(request: Request) {
 
       const isPasswordValid = await bcrypt.compare(password, existingUser.password);
       if (!isPasswordValid) {
+        // Generic message — never confirm email exists
         return NextResponse.json(
-          { error: 'An account with this email already exists. If this is your account, please enter your correct password to add the new role.' },
-          { status: 409 }
+          { error: AUTH_ERRORS.GENERIC_REGISTRATION },
+          { status: 400 }
         );
       }
 
       // User exists and password is correct — try to add the second role
       if (userRole === 'MENTEE' && existingUser.mentee) {
         return NextResponse.json(
-          { error: 'You already have a mentee profile. Please log in via the Mentee portal.' },
+          { error: 'This profile already exists. Please log in.' },
           { status: 409 }
         );
       }
 
       if (userRole === 'MENTOR' && existingUser.mentor) {
         return NextResponse.json(
-          { error: 'You already have a mentor profile. Please log in via the Mentor portal.' },
+          { error: 'This profile already exists. Please log in.' },
           { status: 409 }
         );
       }
@@ -128,14 +129,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
-        { status: 400 }
-      );
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     // Create user and associated profile in a transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -197,9 +191,9 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('Signup error:', error);
+    console.error('[signup] Error');
     return NextResponse.json(
-      { error: 'Failed to create account' },
+      { error: AUTH_ERRORS.GENERIC_REGISTRATION },
       { status: 500 }
     );
   }

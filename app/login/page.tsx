@@ -75,13 +75,13 @@ export default function LoginPage() {
 
       if (result?.error) {
         if (result.error.includes('NO_MENTEE_PROFILE')) {
-          setError('You do not have a mentee profile. Please log in via the correct portal for your role.');
+          setError('Please log in via the correct portal for your role.');
         } else if (result.error.includes('NO_MENTOR_PROFILE')) {
-          setError('You do not have a mentor profile. Please log in via the correct portal for your role.');
+          setError('Please log in via the correct portal for your role.');
         } else if (result.error.includes('NOT_ADMIN')) {
-          setError('You do not have admin access. Please use the correct portal.');
+          setError('Please log in via the correct portal for your role.');
         } else {
-          setError('Invalid email or password');
+          setError('Incorrect email or password');
         }
       } else if (result?.ok) {
         // Redirect to the portal-specific dashboard, or fallback to root (which auto-redirects by role)

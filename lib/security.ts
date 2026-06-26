@@ -6,8 +6,11 @@
 export function sanitizeString(input: unknown): string {
   if (input === null || input === undefined) return '';
   return String(input)
-    .replace(/<[^>]*>/g, '') // Strip HTML tags
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove script tags and content
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '') // Remove inline event handlers
+    .replace(/<[^>]*>/g, '') // Strip all HTML tags
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') // Strip control characters
+    .replace(/javascript\s*:/gi, '') // Remove javascript: protocol
     .trim();
 }
 

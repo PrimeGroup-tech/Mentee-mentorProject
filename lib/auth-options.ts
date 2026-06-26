@@ -5,6 +5,12 @@ import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
 import { checkRateLimit, RATE_LIMITS } from './rate-limit';
+import { loginSchema, AUTH_ERRORS } from './auth-schemas';
+import { checkLoginThrottle, recordFailedLogin, resetLoginThrottle, isAccountLockoutTriggered } from './login-throttle';
+import { sendEmail } from './email';
+
+const BCRYPT_ROUNDS = 12;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -17,26 +23,26 @@ export const authOptions: NextAuthOptions = {
         loginAs: { label: 'Login As', type: 'text' },
       },
       async authorize(credentials, req) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error('Invalid credentials');
+        // --- Zod validation ---
+        const parsed = loginSchema.safeParse(credentials);
+        if (!parsed.success) {
+          throw new Error(AUTH_ERRORS.INVALID_CREDENTIALS);
         }
+        const { email, password, loginAs } = parsed.data;
 
-        // Rate limit login attempts per email
-        const loginKey = `login:${credentials.email.toLowerCase()}`;
-        const rateCheck = checkRateLimit(loginKey, RATE_LIMITS.AUTH);
+        // --- IP-based rate limit: max 10 per minute ---
+        const loginKey = `login:${email}`;
+        const rateCheck = checkRateLimit(loginKey, { maxRequests: 10, windowSizeSeconds: 60 });
         if (!rateCheck.allowed) {
-          throw new Error('Too many login attempts. Please try again later.');
+          // Same generic message — never reveal throttling vs wrong creds
+          throw new Error(AUTH_ERRORS.INVALID_CREDENTIALS);
         }
 
-        // Sanitize email input
-        const email = credentials.email.toLowerCase().trim();
-        if (!/^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/.test(email)) {
-          throw new Error('Invalid credentials');
-        }
-
-        // Limit password length to prevent bcrypt DoS
-        if (credentials.password.length > 128) {
-          throw new Error('Invalid credentials');
+        // --- Progressive delay check ---
+        const throttle = checkLoginThrottle(email);
+        if (throttle.blocked) {
+          // Return same generic error — never reveal lockout
+          throw new Error(AUTH_ERRORS.INVALID_CREDENTIALS);
         }
 
         const user = await prisma.user.findUnique({
@@ -44,61 +50,87 @@ export const authOptions: NextAuthOptions = {
           include: { mentee: true, mentor: true },
         });
 
+        // User not found — same generic error
         if (!user || !user.password) {
-          throw new Error('Invalid credentials');
+          throw new Error(AUTH_ERRORS.INVALID_CREDENTIALS);
         }
 
-        // Check if account is active
+        // Check if deactivated — same generic error
         if (user.isActive === false) {
-          throw new Error('Account has been deactivated. Contact your administrator.');
+          throw new Error(AUTH_ERRORS.INVALID_CREDENTIALS);
         }
 
-        // Check if account is locked (5 failed attempts, locked for 30 minutes)
+        // Check DB-level lockout (persisted across server restarts)
         if (user.lockedAt) {
-          const lockDuration = 30 * 60 * 1000; // 30 minutes
-          if (Date.now() - new Date(user.lockedAt).getTime() < lockDuration) {
-            throw new Error('Account is locked due to too many failed login attempts. Please try again in 30 minutes or contact your administrator.');
+          if (Date.now() - new Date(user.lockedAt).getTime() < LOCKOUT_DURATION_MS) {
+            // Still locked — same generic error
+            throw new Error(AUTH_ERRORS.INVALID_CREDENTIALS);
           } else {
-            // Lock expired, reset
+            // Lock expired, reset in DB
             await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedAt: null } });
           }
         }
 
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
+        // --- Constant-time password comparison via bcrypt.compare ---
+        const isPasswordValid = await bcrypt.compare(password, user.password);
 
         if (!isPasswordValid) {
-          // Increment failed attempts
-          const newAttempts = (user.failedLoginAttempts || 0) + 1;
-          const updateData: any = { failedLoginAttempts: newAttempts };
-          if (newAttempts >= 5) {
+          // Record failure in both in-memory throttle and DB
+          const inMemFailures = recordFailedLogin(email);
+          const newDbAttempts = (user.failedLoginAttempts || 0) + 1;
+          const updateData: any = { failedLoginAttempts: newDbAttempts };
+
+          if (newDbAttempts >= 5) {
             updateData.lockedAt = new Date();
             updateData.isActive = false;
+
+            // Send lockout notification email (fire-and-forget)
+            sendEmail({
+              to: user.email,
+              subject: 'Account Security Alert',
+              html: `<p>Hi ${user.name || 'User'},</p>
+                <p>Your account has been temporarily locked due to multiple unsuccessful login attempts.</p>
+                <p>Please contact your administrator to unlock your account or wait 15 minutes and try again.</p>
+                <p>If you did not attempt to log in, please contact your administrator immediately.</p>
+                <p>— PASS Mentoring System</p>`,
+            }).catch(() => { /* swallow email errors silently */ });
           }
+
           await prisma.user.update({ where: { id: user.id }, data: updateData });
-          if (newAttempts >= 5) {
-            throw new Error('Account has been locked due to 5 failed login attempts. Contact your administrator.');
-          }
-          throw new Error('Invalid credentials');
+
+          // Always same generic error — never reveal lockout vs wrong password
+          throw new Error(AUTH_ERRORS.INVALID_CREDENTIALS);
         }
 
-        // Reset failed attempts on successful login
+        // --- Successful login ---
+        resetLoginThrottle(email);
+
+        // Reset DB failure counters
         if (user.failedLoginAttempts > 0) {
           await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedAt: null } });
         }
 
+        // Re-hash password if stored with fewer rounds (migration on login)
+        try {
+          const rounds = bcrypt.getRounds(user.password);
+          if (rounds < BCRYPT_ROUNDS) {
+            const rehashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
+            await prisma.user.update({ where: { id: user.id }, data: { password: rehashed } });
+          }
+        } catch {
+          // If getRounds fails (non-bcrypt hash), rehash immediately
+          const rehashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
+          await prisma.user.update({ where: { id: user.id }, data: { password: rehashed } });
+        }
+
         // Determine the effective role based on portal selection
-        const requestedRole = credentials.loginAs || user.role;
+        const requestedRole = loginAs || user.role;
 
         if (requestedRole === 'MENTEE') {
-          // User must have a mentee profile or be a MENTEE by role
           if (!user.mentee && user.role !== 'MENTEE') {
             throw new Error('NO_MENTEE_PROFILE');
           }
         } else if (requestedRole === 'MENTOR') {
-          // User must have a mentor profile or be a MENTOR by role
           if (!user.mentor && user.role !== 'MENTOR') {
             throw new Error('NO_MENTOR_PROFILE');
           }
@@ -122,14 +154,9 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        // Store the role chosen at login (portal selection)
         token.role = (user as any).role;
         token.mustChangePassword = (user as any).mustChangePassword || false;
       }
-      // Note: We no longer refresh role from DB on every token check
-      // because the session role is determined by the portal the user chose at login.
-      // If an admin changes a user's primary role, the user simply logs in again
-      // via the appropriate portal.
       return token;
     },
     async session({ session, token }) {

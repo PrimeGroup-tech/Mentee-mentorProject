@@ -156,12 +156,12 @@ async function processMentors(
     // Check for existing user
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      results.push({ row: rowNum, name, email, status: 'skipped', message: 'User already exists with this email' });
+      results.push({ row: rowNum, name, email, status: 'skipped', message: 'Entry skipped' });
       continue;
     }
 
     try {
-      const hashed = await bcrypt.hash(password, 10);
+      const hashed = await bcrypt.hash(password, 12);
 
       await prisma.$transaction(async (tx: any) => {
         const user = await tx.user.create({
@@ -246,12 +246,12 @@ async function processMentees(
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      results.push({ row: rowNum, name, email, status: 'skipped', message: 'User already exists with this email' });
+      results.push({ row: rowNum, name, email, status: 'skipped', message: 'Entry skipped' });
       continue;
     }
 
     try {
-      const hashed = await bcrypt.hash(password, 10);
+      const hashed = await bcrypt.hash(password, 12);
 
       await prisma.$transaction(async (tx: any) => {
         const user = await tx.user.create({
