@@ -127,7 +127,7 @@ export async function POST(request: Request) {
       preferredMeetingFormat: validateEnum(raw.preferredMeetingFormat, ['IN_PERSON', 'VIRTUAL', 'HYBRID'], 'HYBRID'),
       organizationalChallenge: sanitizeLongText(raw.organizationalChallenge, 2000),
       softSkillsGap: sanitizeStringArray(raw.softSkillsGap, undefined, 10),
-      gradeLevel: raw.gradeLevel ? sanitizeString(raw.gradeLevel) : null,
+      gradeLevel: raw.gradeLevel ? parseInt(String(raw.gradeLevel), 10) || null : null,
     };
 
     // Validate required fields
