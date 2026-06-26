@@ -47,7 +47,6 @@ export async function GET(
       personalInterests: mentor.personalInterests,
       shadowSkills: mentor.shadowSkills,
       commitmentAvailability: mentor.commitmentAvailability,
-      organizationalChallenge: mentor.organizationalChallenge,
       shortBio: mentor.shortBio,
       profilePhotoUrl: mentor.profilePhotoUrl,
       tier: mentor.tier,
