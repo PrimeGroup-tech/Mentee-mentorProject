@@ -217,7 +217,7 @@ export default function BulkUploadPage() {
       validEntries.find(v => v.id === e.id) ? { ...e, status: 'uploading' } : e
     ));
 
-    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 
     // Upload one by one (more reliable than bulk FormData for large files)
     let successCount = 0;
@@ -225,7 +225,7 @@ export default function BulkUploadPage() {
 
     for (const entry of validEntries) {
       try {
-        // Auto-resize if over 5MB
+        // Auto-resize if over 10MB
         const resizedFile = await resizeImage(entry.file!, MAX_SIZE);
 
         const formData = new FormData();
@@ -414,7 +414,7 @@ export default function BulkUploadPage() {
               Upload photos for multiple mentors at once. Add entries below and assign each photo to a mentor email.
             </p>
             <p className="text-xs text-muted-foreground mb-4">
-              <strong>Tip:</strong> Name your files as the mentor&apos;s email (e.g. <code>john@company.com.jpg</code>) and they will be auto-matched. Images over 5MB are automatically compressed.
+              <strong>Tip:</strong> Name your files as the mentor&apos;s email (e.g. <code>john@company.com.jpg</code>) and they will be auto-matched. Images over 10MB are automatically compressed.
             </p>
 
             {bulkMessage.text && (
