@@ -42,7 +42,7 @@ function generateMentorTemplate() {
     'Full Name*', 'Email*', 'Password*', 'Job Title/Role*', 'Business Unit*',
     'Years of Experience*', 'Areas of Expertise*', 'Leadership Style*',
     'Personal Interests', 'Skills (Expertise & Soft Skills)',
-    'Commitment/Availability', 'Max Mentees', 'Organizational Challenge',
+    'Commitment/Availability', 'Max Mentees',
     'Tier (1-3)', 'Level (11-22)', 'Short Bio', 'Photo Filename'
   ];
 
@@ -92,7 +92,6 @@ function generateMentorTemplate() {
     ['Skills (Expertise & Soft Skills)', 'Comma-separated list. Options: Strategic Thinking & Visioning, Financial Oversight & Acumen, Stakeholder Management, Leading Diverse Teams, Emotional Intelligence, Change Management & Resilience, Technology & AI Integration, Communication & Public Speaking, Team Building, People Management, Problem Solving, Technical Acumen, Industry Knowledge, Functional Knowledge, Conflict Resolution, Executive Presence, Culture Building, Active Listening, Constructive Conflict Resolution, Adaptability, Constructive Feedback Reception, Time Management & Organisation, Mentoring & Coaching, Negotiation & Influence, Cross-functional Collaboration, Strategic Networking, Innovation & Creative Thinking'],
     ['Commitment/Availability', 'Description of availability for mentoring sessions'],
     ['Max Mentees', 'Maximum number of mentees to take on (default: 5)'],
-    ['Organizational Challenge', 'Options: Digital Transformation, Succession Planning, Safety Culture, Cost Optimization'],
     ['Tier (1-3)', 'Mentor tier level: 1, 2, or 3'],
     ['Level (12-23)', 'Mentor level: any number from 12 to 23'],
     ['Short Bio', 'Brief biography or description'],
@@ -120,7 +119,6 @@ function generateMenteeTemplate() {
     'Full Name*', 'Email*', 'Password*', 'Job Title/Role*', 'Business Unit*',
     'Years of Experience*', 'Employment Date*', 'Development Areas*',
     'Career Goals*', 'Personal Interests*', 'Preferred Meeting Format*',
-    'Organizational Challenge'
   ];
 
   const sample1 = [
@@ -163,7 +161,6 @@ function generateMenteeTemplate() {
     ['Career Goals*', 'Description of career aspirations and goals'],
     ['Personal Interests*', 'Comma-separated list. Options: Golf, Technology, Reading, Hiking, Photography, Cooking, Travel, Music, Sports, Volunteering, Negotiation, Networking, Current Affairs, Movies, Geography, Socializing, Animals'],
     ['Preferred Meeting Format*', 'Must be one of: IN_PERSON, VIRTUAL, HYBRID'],
-    ['Organizational Challenge', 'Options: Digital Transformation, Succession Planning, Safety Culture, Cost Optimization'],
   ];
 
   const wsInstructions = XLSX.utils.aoa_to_sheet(instructions);
