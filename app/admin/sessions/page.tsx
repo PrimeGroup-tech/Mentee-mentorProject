@@ -33,6 +33,10 @@ interface SessionData {
   sessionNotes: string | null;
   menteeConfirmed: boolean;
   mentorConfirmed: boolean;
+  sessionHeldMentee?: boolean | null;
+  sessionHeldMentor?: boolean | null;
+  menteeFeedback?: string | null;
+  mentorFeedback?: string | null;
   mentee: { user: { name: string; email: string }; businessUnit?: string };
   mentor: { user: { name: string; email: string }; businessUnit?: string };
 }
@@ -245,10 +249,22 @@ export default function AdminSessionsPage() {
                                 <p className="text-xs text-gray-600 line-clamp-2">{s.sessionNotes}</p>
                               </div>
                             )}
+
+                            {/* Feedback */}
+                            {(s.menteeFeedback || s.mentorFeedback) && (
+                              <div className="mt-2 space-y-1">
+                                {s.menteeFeedback && (
+                                  <p className="text-xs bg-emerald-50 p-2 rounded border border-emerald-100"><strong className="text-emerald-700">Mentee feedback:</strong> <span className="text-gray-600">{s.menteeFeedback}</span></p>
+                                )}
+                                {s.mentorFeedback && (
+                                  <p className="text-xs bg-blue-50 p-2 rounded border border-blue-100"><strong className="text-blue-700">Mentor feedback:</strong> <span className="text-gray-600">{s.mentorFeedback}</span></p>
+                                )}
+                              </div>
+                            )}
                           </div>
 
-                          {/* Confirmation indicators */}
-                          <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                          {/* Confirmation & Session Held indicators */}
+                          <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
                             <div className={`flex items-center gap-1 text-xs ${s.menteeConfirmed ? 'text-green-600' : 'text-gray-400'}`}>
                               <div className={`w-2 h-2 rounded-full ${s.menteeConfirmed ? 'bg-green-500' : 'bg-gray-300'}`} />
                               Mentee
@@ -257,6 +273,23 @@ export default function AdminSessionsPage() {
                               <div className={`w-2 h-2 rounded-full ${s.mentorConfirmed ? 'bg-green-500' : 'bg-gray-300'}`} />
                               Mentor
                             </div>
+                            {(s.sessionHeldMentee !== null && s.sessionHeldMentee !== undefined) || (s.sessionHeldMentor !== null && s.sessionHeldMentor !== undefined) ? (
+                              <div className="mt-1 pt-1 border-t border-gray-100">
+                                <p className="text-[10px] text-muted-foreground font-medium mb-0.5">Held?</p>
+                                {s.sessionHeldMentee !== null && s.sessionHeldMentee !== undefined && (
+                                  <div className="flex items-center gap-1 text-xs">
+                                    <span className={`font-medium ${s.sessionHeldMentee ? 'text-green-600' : 'text-red-500'}`}>{s.sessionHeldMentee ? 'YES' : 'NO'}</span>
+                                    <span className="text-muted-foreground">(mentee)</span>
+                                  </div>
+                                )}
+                                {s.sessionHeldMentor !== null && s.sessionHeldMentor !== undefined && (
+                                  <div className="flex items-center gap-1 text-xs">
+                                    <span className={`font-medium ${s.sessionHeldMentor ? 'text-green-600' : 'text-red-500'}`}>{s.sessionHeldMentor ? 'YES' : 'NO'}</span>
+                                    <span className="text-muted-foreground">(mentor)</span>
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       </div>
