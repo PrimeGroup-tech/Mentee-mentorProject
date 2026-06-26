@@ -126,7 +126,7 @@ export async function PUT(
     const allowedFields = [
       'role', 'businessUnit', 'yearsOfExperience', 'areasOfExpertise',
       'leadershipStyle', 'coachingGoals', 'personalInterests', 'shadowSkills',
-      'commitmentAvailability', 'maxMentees', 'organizationalChallenge', 'shortBio',
+      'commitmentAvailability', 'maxMentees', 'shortBio',
       'profileComplete', 'tier', 'level',
     ];
 
