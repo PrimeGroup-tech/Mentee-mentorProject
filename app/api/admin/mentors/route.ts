@@ -86,7 +86,6 @@ export async function POST(request: Request) {
           commitmentAvailability: '',
           maxMentees: 5,
           currentMenteeCount: 0,
-          organizationalChallenge: '',
           shortBio: '',
           profileComplete: false,
         },
