@@ -129,11 +129,10 @@ async function processMentors(
     const shadowSkills = allSkills.length > 0 ? allSkills.filter((s: string) => !areasOfExpertise.includes(s)) : [];
     const commitmentAvailability = cleanStr(row[10]);
     const maxMentees = cleanNum(row[11], 5);
-    const organizationalChallenge = cleanStr(row[12]);
-    const tier = row[13] ? cleanNum(row[13]) : null;
-    const level = row[14] ? cleanNum(row[14]) : null;
-    const shortBio = cleanStr(row[15]);
-    // row[16] = Photo Filename (informational only)
+    const tier = row[12] ? cleanNum(row[12]) : null;
+    const level = row[13] ? cleanNum(row[13]) : null;
+    const shortBio = cleanStr(row[14]);
+    // row[15] = Photo Filename (informational only)
 
     // Validate required fields
     if (!name || !email || !password || !role || !businessUnit) {
@@ -181,7 +180,6 @@ async function processMentors(
             shadowSkills,
             commitmentAvailability: commitmentAvailability || '',
             maxMentees,
-            organizationalChallenge: organizationalChallenge || null,
             tier: tier && tier >= 1 && tier <= 3 ? tier : null,
             level: level && level >= 11 && level <= 22 ? level : null,
             shortBio: shortBio || null,
@@ -225,7 +223,6 @@ async function processMentees(
     const careerGoals = cleanStr(row[8]);
     const personalInterests = parseCommaSeparated(row[9]);
     const preferredMeetingFormat = cleanStr(row[10]).toUpperCase();
-    const organizationalChallenge = cleanStr(row[11]);
 
     if (!name || !email || !password || !role || !businessUnit) {
       results.push({ row: rowNum, name: name || '(empty)', email: email || '(empty)', status: 'error', message: 'Missing required fields (Name, Email, Password, Role, Business Unit)' });
@@ -270,7 +267,6 @@ async function processMentees(
             careerGoals: careerGoals || '',
             personalInterests,
             preferredMeetingFormat: finalMeetingFormat,
-            organizationalChallenge: organizationalChallenge || null,
             profileComplete: true,
           },
         });
