@@ -176,7 +176,7 @@ export default function MentorProfilePage() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    const maxSize = 5 * 1024 * 1024;
+    const maxSize = 10 * 1024 * 1024;
 
     // Validate all files first
     for (let i = 0; i < files.length; i++) {
@@ -185,7 +185,7 @@ export default function MentorProfilePage() {
         return;
       }
       if (files[i].size > maxSize) {
-        setError(`File ${files[i].name} is too large. Maximum size is 5MB.`);
+        setError(`File ${files[i].name} is too large. Maximum size is 10MB.`);
         return;
       }
     }
@@ -345,7 +345,7 @@ export default function MentorProfilePage() {
                     <Upload className="w-4 h-4 mr-2" />
                     {uploading ? 'Uploading...' : profilePhotoUrl ? 'Change Photo' : 'Upload Photo'}
                   </Button>
-                  <p className="text-xs text-muted-foreground">JPG, PNG or WebP. Max size 5MB.</p>
+                  <p className="text-xs text-muted-foreground">JPG, PNG or WebP. Max size 10MB.</p>
                 </div>
               </div>
             </CardContent>
