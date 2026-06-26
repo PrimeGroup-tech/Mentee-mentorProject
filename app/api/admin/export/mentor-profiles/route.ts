@@ -6,8 +6,6 @@ import { prisma } from '@/lib/prisma';
 import * as XLSX from 'xlsx';
 import { applyRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 
-import { sendEmail } from '@/lib/email';
-
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
@@ -56,7 +54,6 @@ export async function GET(request: Request) {
       'Leadership Style': mentor.leadershipStyle || '',
       'Personal Interests': mentor.personalInterests?.join(', ') || '',
       'Commitment Availability': mentor.commitmentAvailability || '',
-      'Organizational Challenge': mentor.keyOrganizationalChallenge || '',
       'Max Mentees': mentor.maxMentees || 0,
       'Current Mentees': mentor.currentMenteeCount || 0,
       'Available Slots': (mentor.maxMentees || 0) - (mentor.currentMenteeCount || 0),
@@ -74,6 +71,7 @@ export async function GET(request: Request) {
     const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     const base64Excel = Buffer.from(excelBuffer).toString('base64');
 
+    const appUrl = process.env.NEXTAUTH_URL || '';
     const timestamp = new Date().toLocaleString();
 
     let tableRows = mentors.slice(0, 50).map(mentor => `
@@ -119,11 +117,32 @@ export async function GET(request: Request) {
 
     let emailSent = false;
     try {
-      await sendEmail({
-              to: 'tobiloba.obadara@Primeatlanticnigeria.com',
-              subject: `Mentor Profiles Report - ${new Date().toLocaleDateString()}`,
-              html: htmlBody,
-            });
+      const emailResponse = await fetch('https://apps.abacus.ai/api/sendNotificationEmail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deployment_token: process.env.ABACUSAI_API_KEY,
+          app_id: process.env.WEB_APP_ID,
+          notification_id: process.env.NOTIF_ID_EXCEL_REPORT_EXPORT,
+          subject: `Mentor Profiles Report - ${new Date().toLocaleDateString()}`,
+          body: htmlBody,
+          is_html: true,
+          recipient_email: 'tobiloba.obadara@Primeatlanticnigeria.com',
+          sender_email: `noreply@${new URL(appUrl).hostname}`,
+          sender_alias: 'PASS Mentoring System',
+        }),
+      });
+
+      const emailResult = await emailResponse.json();
+      console.log('Email API response:', JSON.stringify(emailResult));
+
+      if (emailResult.success) {
+        emailSent = true;
+      } else if (emailResult.notification_disabled) {
+        console.log('Notification disabled by user, skipping email');
+      } else {
+        console.error('Email API error:', emailResult.message || 'Unknown error');
+      }
     } catch (emailError) {
       console.error('Failed to send email:', emailError);
     }
