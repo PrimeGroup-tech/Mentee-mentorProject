@@ -99,15 +99,8 @@ export function calculateMatchingScore(
   }
 
   // 7. Wildcard Alignment (10%)
-  // Similar organizational challenge focus
-  const menteeChallenge = (mentee.organizationalChallenge ?? '').toLowerCase();
-  const mentorChallenge = (mentor.organizationalChallenge ?? '').toLowerCase();
-  
-  if (menteeChallenge && mentorChallenge) {
-    wildcardScore = menteeChallenge === mentorChallenge ? 100 : 50;
-  } else {
-    wildcardScore = 40;
-  }
+  // Default score since organizational challenge has been removed
+  wildcardScore = 50;
 
   // 8. Availability & Format Preference (3%)
   // Check if mentor has capacity
