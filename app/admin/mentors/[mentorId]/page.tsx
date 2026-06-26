@@ -82,7 +82,6 @@ export default function AdminEditMentorPage() {
     shadowSkills: [] as string[],
     commitmentAvailability: '',
     maxMentees: 5,
-    organizationalChallenge: '',
     shortBio: '',
     tier: null as number | null,
     level: null as number | null,
@@ -109,7 +108,6 @@ export default function AdminEditMentorPage() {
             shadowSkills: data.shadowSkills || [],
             commitmentAvailability: data.commitmentAvailability || '',
             maxMentees: data.maxMentees || 5,
-            organizationalChallenge: data.organizationalChallenge || '',
             shortBio: data.shortBio || '',
             tier: data.tier || null,
             level: data.level || null,
@@ -474,14 +472,7 @@ export default function AdminEditMentorPage() {
                 placeholder="e.g., Available weekly on Tuesdays"
               />
             </div>
-            <div>
-              <label className="text-sm font-medium">Organizational Challenge</label>
-              <Textarea
-                value={formData.organizationalChallenge}
-                onChange={(e) => setFormData({ ...formData, organizationalChallenge: e.target.value })}
-                rows={2}
-              />
-            </div>
+
           </CardContent>
         </Card>
 
