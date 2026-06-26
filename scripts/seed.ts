@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 
 const BUSINESS_UNITS = [
+  'SYNERPET',
   'PACE',
   'PASS',
   'WAEL',
@@ -101,7 +102,6 @@ async function seed() {
           shadowSkills: ['Communication', 'Problem Solving'],
           maxMentees: 5,
           currentMenteeCount: 0,
-          organizationalChallenge: getRandomElement(CHALLENGES),
           profileComplete: true,
         },
       });
@@ -149,7 +149,6 @@ async function seed() {
           careerGoals: 'Advance to senior management',
           personalInterests: getRandomElements(INTERESTS, 2),
           preferredMeetingFormat: 'HYBRID',
-          organizationalChallenge: getRandomElement(CHALLENGES),
           profileComplete: false,
         },
       });
