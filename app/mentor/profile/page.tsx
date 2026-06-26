@@ -19,7 +19,7 @@ import { BrandedHeader } from '@/components/branded-header';
 import { LEVEL_OPTIONS } from '@/lib/level-config';
 
 const BUSINESS_UNITS = [
-  'PACE', 'PASS', 'WAEL', 'CINALT', 'MILE SQUARE', 'WESTON', 'PAL', 'PAGES'
+  'PACE', 'PASS', 'WAEL', 'CINALT', 'MILE SQUARE', 'WESTON', 'PAL', 'PAGES', 'SYNERPET'
 ];
 
 const EXPERTISE_AND_SKILLS = [

@@ -8,7 +8,7 @@ import { applyRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
-const VALID_BUSINESS_UNITS = ['PACE', 'PASS', 'WAEL', 'CINALT', 'MILE SQUARE', 'WESTON', 'PAL', 'PAGES'];
+const VALID_BUSINESS_UNITS = ['PACE', 'PASS', 'WAEL', 'CINALT', 'MILE SQUARE', 'WESTON', 'PAL', 'PAGES', 'SYNERPET'];
 const VALID_LEADERSHIP_STYLES = ['DIRECT', 'COLLABORATIVE', 'ANALYTICAL', 'SUPPORTIVE', 'VISIONARY'];
 const VALID_MEETING_FORMATS = ['IN_PERSON', 'VIRTUAL', 'HYBRID'];
 

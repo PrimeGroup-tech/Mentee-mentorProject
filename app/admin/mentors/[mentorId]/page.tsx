@@ -16,7 +16,7 @@ import Image from 'next/image';
 import { BrandedHeader } from '@/components/branded-header';
 import { LEVEL_OPTIONS } from '@/lib/level-config';
 
-const BUSINESS_UNITS = ['PACE', 'PASS', 'WAEL', 'CINALT', 'MILE SQUARE', 'WESTON', 'PAL', 'PAGES'];
+const BUSINESS_UNITS = ['PACE', 'PASS', 'WAEL', 'CINALT', 'MILE SQUARE', 'WESTON', 'PAL', 'PAGES', 'SYNERPET'];
 
 const EXPERTISE_AREAS = [
   'Strategic Thinking & Visioning', 'Financial Oversight & Acumen', 'Stakeholder Management',

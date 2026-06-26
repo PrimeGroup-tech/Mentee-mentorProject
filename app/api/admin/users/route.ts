@@ -31,7 +31,10 @@ export async function GET(request: Request) {
         isActive: true,
         hasDualRole: true,
         createdAt: true,
-        mentee: { select: { id: true, profileComplete: true, businessUnit: true, role: true } },
+        mustChangePassword: true,
+        failedLoginAttempts: true,
+        lockedAt: true,
+        mentee: { select: { id: true, profileComplete: true, businessUnit: true, role: true, gradeLevel: true } },
         mentor: { select: { id: true, profileComplete: true, businessUnit: true, role: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -82,12 +85,42 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
       }
       const hashed = await bcrypt.hash(newPassword, 10);
-      await prisma.user.update({ where: { id: userId }, data: { password: hashed } });
+      await prisma.user.update({ where: { id: userId }, data: { password: hashed, mustChangePassword: true } });
       await prisma.auditLog.create({
         data: { action: 'PASSWORD_CHANGED', description: `Admin changed password for ${targetUser.email}`, performedByEmail: admin.email },
       });
       sendProfileChangeNotification({ userEmail: targetUser.email, userName: targetUser.name || '', changes: 'Your password has been changed by an administrator.', adminEmail: admin.email }).catch(console.error);
       return NextResponse.json({ success: true, message: 'Password updated successfully' });
+    }
+
+    // ACTION: Unlock account (reset failed login attempts)
+    if (action === 'unlock_account') {
+      await prisma.user.update({ where: { id: userId }, data: { failedLoginAttempts: 0, lockedAt: null, isActive: true } });
+      await prisma.auditLog.create({
+        data: { action: 'ACCOUNT_UNLOCKED', description: `Admin unlocked account for ${targetUser.email}`, performedByEmail: admin.email },
+      });
+      sendProfileChangeNotification({ userEmail: targetUser.email, userName: targetUser.name || '', changes: 'Your account has been unlocked. You can now log in again.', adminEmail: admin.email }).catch(console.error);
+      return NextResponse.json({ success: true, message: 'Account unlocked successfully' });
+    }
+
+    // ACTION: Update mentee job role and level
+    if (action === 'update_mentee_profile') {
+      const { role: menteeRole, gradeLevel } = body;
+      if (!targetUser.mentee) {
+        return NextResponse.json({ error: 'User does not have a mentee profile' }, { status: 400 });
+      }
+      const updateData: any = {};
+      if (menteeRole !== undefined) updateData.role = sanitizeString(menteeRole);
+      if (gradeLevel !== undefined) updateData.gradeLevel = gradeLevel ? parseInt(String(gradeLevel), 10) || null : null;
+      if (Object.keys(updateData).length === 0) {
+        return NextResponse.json({ error: 'No changes provided' }, { status: 400 });
+      }
+      await prisma.mentee.update({ where: { id: targetUser.mentee.id }, data: updateData });
+      await prisma.auditLog.create({
+        data: { action: 'MENTEE_PROFILE_UPDATED_BY_ADMIN', description: `Admin updated mentee profile for ${targetUser.email}: ${JSON.stringify(updateData)}`, performedByEmail: admin.email },
+      });
+      sendProfileChangeNotification({ userEmail: targetUser.email, userName: targetUser.name || '', changes: `Your mentee profile has been updated: ${Object.entries(updateData).map(([k,v]) => `${k}: ${v}`).join(', ')}.`, adminEmail: admin.email }).catch(console.error);
+      return NextResponse.json({ success: true, message: 'Mentee profile updated' });
     }
 
     // ACTION: Toggle active status (revoke/restore login)

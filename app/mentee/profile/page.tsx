@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 const BUSINESS_UNITS = [
-  'PACE', 'PASS', 'WAEL', 'CINALT', 'MILE SQUARE', 'WESTON', 'PAL', 'PAGES'
+  'PACE', 'PASS', 'WAEL', 'CINALT', 'MILE SQUARE', 'WESTON', 'PAL', 'PAGES', 'SYNERPET'
 ];
 
 const DEVELOPMENT_AREAS = [

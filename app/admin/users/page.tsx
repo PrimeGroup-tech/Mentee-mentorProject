@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BrandedHeader } from '@/components/branded-header';
 import { PasswordInput } from '@/components/password-input';
-import { Users, Search, KeyRound, ArrowLeftRight, Shield, UserCheck, GraduationCap, AlertTriangle, Trash2, Ban, CheckCircle, UserPlus, Edit, MoreVertical } from 'lucide-react';
+import { Users, Search, KeyRound, ArrowLeftRight, Shield, UserCheck, GraduationCap, AlertTriangle, Trash2, Ban, CheckCircle, UserPlus, Edit, MoreVertical, Lock, Unlock, Briefcase } from 'lucide-react';
+import { LEVEL_OPTIONS } from '@/lib/level-config';
 
 interface UserItem {
   id: string;
@@ -23,7 +24,10 @@ interface UserItem {
   isActive: boolean;
   hasDualRole: boolean;
   createdAt: string;
-  mentee?: { id: string; profileComplete: boolean; businessUnit: string; role: string } | null;
+  mustChangePassword?: boolean;
+  failedLoginAttempts?: number;
+  lockedAt?: string | null;
+  mentee?: { id: string; profileComplete: boolean; businessUnit: string; role: string; gradeLevel?: number | null } | null;
   mentor?: { id: string; profileComplete: boolean; businessUnit: string; role: string } | null;
 }
 
@@ -69,6 +73,12 @@ export default function AdminUsersPage() {
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editLoading, setEditLoading] = useState(false);
+
+  const [menteeEditDialog, setMenteeEditDialog] = useState(false);
+  const [menteeEditUser, setMenteeEditUser] = useState<UserItem | null>(null);
+  const [menteeRole, setMenteeRole] = useState('');
+  const [menteeGradeLevel, setMenteeGradeLevel] = useState('');
+  const [menteeEditLoading, setMenteeEditLoading] = useState(false);
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState<string | null>(null);
@@ -147,6 +157,17 @@ export default function AdminUsersPage() {
     setEditDialog(false);
   };
 
+  const handleMenteeProfileEdit = async () => {
+    if (!menteeEditUser) return;
+    setMenteeEditLoading(true);
+    await doAction(menteeEditUser.id, 'update_mentee_profile', {
+      role: menteeRole || undefined,
+      gradeLevel: menteeGradeLevel ? parseInt(menteeGradeLevel) : undefined,
+    });
+    setMenteeEditLoading(false);
+    setMenteeEditDialog(false);
+  };
+
   const filtered = users.filter(u => {
     const matchSearch = !search || u.name?.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
     const matchRole = filterRole === 'ALL' || u.role === filterRole;
@@ -198,6 +219,8 @@ export default function AdminUsersPage() {
                       {roleBadge(u.role)}
                       {u.hasDualRole && <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">Dual Role</Badge>}
                       {!u.isActive && <Badge className="bg-red-100 text-red-700 border-red-200"><Ban className="w-3 h-3 mr-1" />Deactivated</Badge>}
+                      {u.lockedAt && <Badge className="bg-orange-100 text-orange-700 border-orange-200"><Lock className="w-3 h-3 mr-1" />Locked</Badge>}
+                      {u.mustChangePassword && <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200"><KeyRound className="w-3 h-3 mr-1" />Must Change Pwd</Badge>}
                       {u.mentor && u.role !== 'MENTOR' && <Badge variant="outline" className="text-xs">+Mentor</Badge>}
                       {u.mentee && u.role !== 'MENTEE' && <Badge variant="outline" className="text-xs">+Mentee</Badge>}
                     </div>
@@ -224,6 +247,20 @@ export default function AdminUsersPage() {
                           <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => doAction(u.id, 'toggle_active')}>
                             {u.isActive ? <><Ban className="w-4 h-4 text-red-500" />Revoke Login</> : <><CheckCircle className="w-4 h-4 text-emerald-500" />Restore Login</>}
                           </button>
+
+                          {/* Unlock Account */}
+                          {u.lockedAt && (
+                            <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => doAction(u.id, 'unlock_account')}>
+                              <Unlock className="w-4 h-4 text-green-500" />Unlock Account
+                            </button>
+                          )}
+
+                          {/* Edit Mentee Profile */}
+                          {u.mentee && (
+                            <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => { setMenteeEditUser(u); setMenteeRole(u.mentee?.role || ''); setMenteeGradeLevel(u.mentee?.gradeLevel ? String(u.mentee.gradeLevel) : ''); setMenteeEditDialog(true); setActionsOpen(null); }}>
+                              <Briefcase className="w-4 h-4 text-teal-500" />Edit Mentee Job/Level
+                            </button>
+                          )}
 
                           {/* Convert role */}
                           {u.role !== 'HR_ADMIN' && (
@@ -379,6 +416,39 @@ export default function AdminUsersPage() {
             <Button variant="outline" onClick={() => setDeleteDialog(false)} disabled={deleteLoading}>Cancel</Button>
             <Button onClick={handleDelete} disabled={deleteLoading} className="bg-red-600 hover:bg-red-700 text-white">
               {deleteLoading ? 'Deleting...' : 'Delete Permanently'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Mentee Profile Dialog */}
+      <Dialog open={menteeEditDialog} onOpenChange={setMenteeEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Briefcase className="w-5 h-5 text-teal-600" />Edit Mentee Profile</DialogTitle>
+            <DialogDescription>Update job role and grade level for <strong>{menteeEditUser?.name || menteeEditUser?.email}</strong></DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Job Role / Title</label>
+              <Input value={menteeRole} onChange={(e) => setMenteeRole(e.target.value)} placeholder="e.g. Software Engineer" />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Grade Level</label>
+              <Select value={menteeGradeLevel} onValueChange={setMenteeGradeLevel}>
+                <SelectTrigger><SelectValue placeholder="Select grade level" /></SelectTrigger>
+                <SelectContent>
+                  {LEVEL_OPTIONS.map((lvl) => (
+                    <SelectItem key={lvl.value} value={String(lvl.value)}>{lvl.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMenteeEditDialog(false)} disabled={menteeEditLoading}>Cancel</Button>
+            <Button onClick={handleMenteeProfileEdit} disabled={menteeEditLoading} className="bg-teal-600 hover:bg-teal-700 text-white">
+              {menteeEditLoading ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

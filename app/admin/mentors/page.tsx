@@ -14,7 +14,7 @@ import Image from 'next/image';
 import { BrandedHeader } from '@/components/branded-header';
 import { getLevelBadge } from '@/lib/level-config';
 
-const BUSINESS_UNITS = ['PACE', 'PASS', 'WAEL', 'CINALT', 'MILE SQUARE', 'WESTON', 'PAL', 'PAGES'];
+const BUSINESS_UNITS = ['PACE', 'PASS', 'WAEL', 'CINALT', 'MILE SQUARE', 'WESTON', 'PAL', 'PAGES', 'SYNERPET'];
 
 const TIER_BADGES: Record<number, { label: string; color: string }> = {
   1: { label: 'Tier 1', color: 'bg-amber-100 text-amber-800' },

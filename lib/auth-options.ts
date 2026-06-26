@@ -53,13 +53,40 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Account has been deactivated. Contact your administrator.');
         }
 
+        // Check if account is locked (5 failed attempts, locked for 30 minutes)
+        if (user.lockedAt) {
+          const lockDuration = 30 * 60 * 1000; // 30 minutes
+          if (Date.now() - new Date(user.lockedAt).getTime() < lockDuration) {
+            throw new Error('Account is locked due to too many failed login attempts. Please try again in 30 minutes or contact your administrator.');
+          } else {
+            // Lock expired, reset
+            await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedAt: null } });
+          }
+        }
+
         const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.password
         );
 
         if (!isPasswordValid) {
+          // Increment failed attempts
+          const newAttempts = (user.failedLoginAttempts || 0) + 1;
+          const updateData: any = { failedLoginAttempts: newAttempts };
+          if (newAttempts >= 5) {
+            updateData.lockedAt = new Date();
+            updateData.isActive = false;
+          }
+          await prisma.user.update({ where: { id: user.id }, data: updateData });
+          if (newAttempts >= 5) {
+            throw new Error('Account has been locked due to 5 failed login attempts. Contact your administrator.');
+          }
           throw new Error('Invalid credentials');
+        }
+
+        // Reset failed attempts on successful login
+        if (user.failedLoginAttempts > 0) {
+          await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedAt: null } });
         }
 
         // Determine the effective role based on portal selection
@@ -86,6 +113,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: requestedRole,
+          mustChangePassword: user.mustChangePassword || false,
         };
       },
     }),
@@ -96,6 +124,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         // Store the role chosen at login (portal selection)
         token.role = (user as any).role;
+        token.mustChangePassword = (user as any).mustChangePassword || false;
       }
       // Note: We no longer refresh role from DB on every token check
       // because the session role is determined by the portal the user chose at login.
@@ -107,6 +136,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        (session.user as any).mustChangePassword = token.mustChangePassword || false;
       }
       return session;
     },
