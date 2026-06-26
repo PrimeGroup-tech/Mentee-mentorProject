@@ -170,7 +170,7 @@ export default function AdminUsersPage() {
 
   const filtered = users.filter(u => {
     const matchSearch = !search || u.name?.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
-    const matchRole = filterRole === 'ALL' || u.role === filterRole;
+    const matchRole = filterRole === 'ALL' || u.role === filterRole || (u.hasDualRole && (filterRole === 'MENTOR' || filterRole === 'MENTEE'));
     return matchSearch && matchRole;
   });
 
