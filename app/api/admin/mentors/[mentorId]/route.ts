@@ -2,14 +2,16 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { v4 as uuidv4 } from 'uuid';
-import { uploadFile } from '@/lib/blob-storage';
+import { createS3Client, getBucketConfig } from '@/lib/aws-config';
 import { isValidId } from '@/lib/security';
 import { applyRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
-
+const s3Client = createS3Client();
+const { bucketName, folderPrefix } = getBucketConfig();
 
 async function verifyAdmin() {
   const session = await getServerSession(authOptions);
@@ -98,15 +100,22 @@ export async function PUT(
         if (!allowedTypes.includes(photo.type)) {
           return NextResponse.json({ error: 'Invalid file type. Only JPEG, PNG, and WebP are allowed.' }, { status: 400 });
         }
-        if (photo.size > 5 * 1024 * 1024) {
-          return NextResponse.json({ error: 'File too large (max 5MB)' }, { status: 400 });
+        if (photo.size > 10 * 1024 * 1024) {
+          return NextResponse.json({ error: 'File too large (max 10MB)' }, { status: 400 });
         }
 
         const ext = photo.name.split('.').pop();
-        const pathname = `mentors/${params.mentorId}/${uuidv4()}.${ext}`;
+        const key = `${folderPrefix}public/mentors/${params.mentorId}/${uuidv4()}.${ext}`;
         const bytes = await photo.arrayBuffer();
 
-        photoUrl = await uploadFile(pathname, Buffer.from(bytes), photo.type);
+        await s3Client.send(new PutObjectCommand({
+          Bucket: bucketName,
+          Key: key,
+          Body: Buffer.from(bytes),
+          ContentType: photo.type,
+        }));
+
+        photoUrl = `https://${bucketName}.s3.${process.env.AWS_REGION || 'us-west-2'}.amazonaws.com/${key}`;
       }
     } else {
       updateData = await request.json();
