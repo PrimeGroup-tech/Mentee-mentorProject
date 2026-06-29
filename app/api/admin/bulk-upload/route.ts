@@ -164,7 +164,7 @@ async function processMentors(
 
       await prisma.$transaction(async (tx: any) => {
         const user = await tx.user.create({
-          data: { email, name, password: hashed, role: 'MENTOR' },
+          data: { email, name, password: hashed, role: 'MENTOR', mustChangePassword: true },
         });
 
         await tx.mentor.create({
@@ -252,7 +252,7 @@ async function processMentees(
 
       await prisma.$transaction(async (tx: any) => {
         const user = await tx.user.create({
-          data: { email, name, password: hashed, role: 'MENTEE' },
+          data: { email, name, password: hashed, role: 'MENTEE', mustChangePassword: true },
         });
 
         await tx.mentee.create({
