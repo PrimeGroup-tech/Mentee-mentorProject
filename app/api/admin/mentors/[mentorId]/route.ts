@@ -2,16 +2,14 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { v4 as uuidv4 } from 'uuid';
-import { createS3Client, getBucketConfig } from '@/lib/aws-config';
+import { uploadFile } from '@/lib/blob-storage';
 import { isValidId } from '@/lib/security';
 import { applyRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
-const s3Client = createS3Client();
-const { bucketName, folderPrefix } = getBucketConfig();
+
 
 async function verifyAdmin() {
   const session = await getServerSession(authOptions);
@@ -105,17 +103,10 @@ export async function PUT(
         }
 
         const ext = photo.name.split('.').pop();
-        const key = `${folderPrefix}public/mentors/${params.mentorId}/${uuidv4()}.${ext}`;
+        const pathname = `mentors/${params.mentorId}/${uuidv4()}.${ext}`;
         const bytes = await photo.arrayBuffer();
 
-        await s3Client.send(new PutObjectCommand({
-          Bucket: bucketName,
-          Key: key,
-          Body: Buffer.from(bytes),
-          ContentType: photo.type,
-        }));
-
-        photoUrl = `https://${bucketName}.s3.${process.env.AWS_REGION || 'us-west-2'}.amazonaws.com/${key}`;
+        photoUrl = await uploadFile(pathname, Buffer.from(bytes), photo.type);
       }
     } else {
       updateData = await request.json();
