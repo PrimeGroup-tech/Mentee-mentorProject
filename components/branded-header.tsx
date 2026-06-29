@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { LogOut, LayoutDashboard, Users, User, Settings, CalendarDays, UserCog, Upload, BarChart3 } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, User, Settings, CalendarDays, UserCog, Upload, BarChart3, KeyRound } from 'lucide-react';
 
 interface BrandedHeaderProps {
   title?: string;
@@ -168,6 +168,16 @@ export function BrandedHeader({ title, subtitle, showNav = true }: BrandedHeader
               )}
 
               <div className="w-px h-6 bg-white/20 mx-1" />
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-white/80 hover:text-white hover:bg-white/10"
+                onClick={() => router.push('/change-password')}
+              >
+                <KeyRound className="w-4 h-4 mr-1.5" />
+                <span className="hidden sm:inline">Change Password</span>
+              </Button>
 
               <Button
                 variant="ghost"
