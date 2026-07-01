@@ -176,6 +176,31 @@ export default function AdminUsersPage() {
     return matchSearch && matchRole;
   });
 
+  const lockedUsers = users.filter(u => !u.isActive || u.lockedAt);
+
+  const restoreAllLocked = async () => {
+    setActionLoading('__all__');
+    setMessage({ type: '', text: '' });
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore_all_locked' }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage({ type: 'success', text: data.message });
+        fetchUsers();
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Operation failed' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Network error' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (loading) {
     return (<div><BrandedHeader title="User Management" /><div className="max-w-5xl mx-auto p-6"><p className="text-center text-muted-foreground">Loading users...</p></div></div>);
   }
@@ -188,6 +213,21 @@ export default function AdminUsersPage() {
           <Alert className={message.type === 'success' ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}>
             <AlertDescription className={message.type === 'success' ? 'text-emerald-800' : 'text-red-800'}>{message.text}</AlertDescription>
           </Alert>
+        )}
+
+        {lockedUsers.length > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-amber-900">{lockedUsers.length} account(s) are locked or deactivated</p>
+                <p className="text-sm text-amber-800">Restore access for everyone at once so they can log in again.</p>
+              </div>
+            </div>
+            <Button onClick={restoreAllLocked} disabled={actionLoading === '__all__'} className="bg-emerald-600 text-white hover:bg-emerald-700 flex-shrink-0">
+              {actionLoading === '__all__' ? 'Restoring...' : 'Restore All Locked'}
+            </Button>
+          </div>
         )}
 
         {/* Filters */}
