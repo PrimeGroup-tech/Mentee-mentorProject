@@ -80,17 +80,20 @@ export const authOptions: NextAuthOptions = {
           const newDbAttempts = (user.failedLoginAttempts || 0) + 1;
           const updateData: any = { failedLoginAttempts: newDbAttempts };
 
-          if (newDbAttempts >= 5) {
+          if (newDbAttempts >= 8) {
+            // Temporary lock only (auto-expires after LOCKOUT_DURATION_MS).
+            // We intentionally do NOT set isActive=false here: isActive is reserved
+            // for deliberate admin deactivation, so users who simply mistype their
+            // password recover automatically and don't require a manual restore.
             updateData.lockedAt = new Date();
-            updateData.isActive = false;
 
             // Send lockout notification email (fire-and-forget)
             sendEmail({
               to: user.email,
               subject: 'Account Security Alert',
               html: `<p>Hi ${user.name || 'User'},</p>
-                <p>Your account has been temporarily locked due to multiple unsuccessful login attempts.</p>
-                <p>Please contact your administrator to unlock your account or wait 15 minutes and try again.</p>
+                <p>Your account has been temporarily locked for 15 minutes due to multiple unsuccessful login attempts.</p>
+                <p>Please wait 15 minutes and try again, or contact your administrator if you need immediate access.</p>
                 <p>If you did not attempt to log in, please contact your administrator immediately.</p>
                 <p>— PASS Mentoring System</p>`,
             }).catch(() => { /* swallow email errors silently */ });
