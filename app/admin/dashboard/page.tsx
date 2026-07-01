@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
 
-import { FileSpreadsheet, Users, UserCheck, ClipboardList, Download, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { FileSpreadsheet, Users, UserCheck, ClipboardList, Download, CheckCircle2, Clock, AlertCircle, Search, X } from 'lucide-react';
 import { BrandedHeader } from '@/components/branded-header';
 import { StatCard } from '@/components/stat-card';
 
@@ -19,6 +20,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedMentee, setSelectedMentee] = useState<string | null>(null);
   const [selectedMentor, setSelectedMentor] = useState<string | null>(null);
+  const [submissionSearch, setSubmissionSearch] = useState('');
 
 
   const [submitting, setSubmitting] = useState(false);
@@ -131,6 +133,17 @@ export default function AdminDashboard() {
   const pendingCount = submissions.filter(s => !s.assignment).length;
   const currentMentee = selectedMentee ? submissions.find((m) => m.id === selectedMentee) : null;
 
+  const filteredSubmissions = submissions.filter((mentee) => {
+    const q = submissionSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (mentee.user?.name || '').toLowerCase().includes(q) ||
+      (mentee.user?.email || '').toLowerCase().includes(q) ||
+      (mentee.role || '').toLowerCase().includes(q) ||
+      (mentee.businessUnit || '').toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="min-h-screen bg-[hsl(210,20%,97%)]">
       <BrandedHeader title="Admin" subtitle="Mentoring Dashboard" />
@@ -186,15 +199,38 @@ export default function AdminDashboard() {
           {/* Submissions List */}
           <div className="lg:col-span-2">
             <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-3 space-y-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <ClipboardList className="w-5 h-5 text-[hsl(211,100%,28%)]" />
-                  Mentee Submissions ({submissions.length})
+                  Mentee Submissions ({filteredSubmissions.length}{submissionSearch.trim() ? ` of ${submissions.length}` : ''})
                 </CardTitle>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    placeholder="Search by name, role or business unit..."
+                    value={submissionSearch}
+                    onChange={(e) => setSubmissionSearch(e.target.value)}
+                    className="pl-10 pr-9"
+                  />
+                  {submissionSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setSubmissionSearch('')}
+                      aria-label="Clear search"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                  {submissions.map((mentee) => (
+                  {filteredSubmissions.length === 0 ? (
+                    <div className="text-center py-10 text-sm text-muted-foreground">
+                      No mentees match your search.
+                    </div>
+                  ) : filteredSubmissions.map((mentee) => (
                     <button
                       key={mentee.id}
                       onClick={() => setSelectedMentee(mentee.id)}
