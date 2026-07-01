@@ -158,6 +158,22 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as any).role;
         token.adminLevel = (user as any).adminLevel || 'STANDARD_ADMIN';
         token.mustChangePassword = (user as any).mustChangePassword || false;
+      } else if (token?.id) {
+        // Refresh privileges from DB on each token refresh so role/admin-level
+        // changes take effect immediately without requiring a re-login.
+        try {
+          const fresh = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { role: true, adminLevel: true, mustChangePassword: true },
+          });
+          if (fresh) {
+            token.role = fresh.role;
+            token.adminLevel = fresh.adminLevel || 'STANDARD_ADMIN';
+            token.mustChangePassword = fresh.mustChangePassword || false;
+          }
+        } catch (e) {
+          // Keep existing token values if the lookup fails.
+        }
       }
       return token;
     },
