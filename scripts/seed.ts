@@ -52,6 +52,7 @@ async function seed() {
         name: 'John Doe',
         password: hashedPassword,
         role: 'HR_ADMIN',
+        adminLevel: 'SUPER_ADMIN',
       },
     });
 
