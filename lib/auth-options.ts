@@ -162,15 +162,21 @@ export const authOptions: NextAuthOptions = {
         token.adminLevel = (user as any).adminLevel || 'STANDARD_ADMIN';
         token.mustChangePassword = (user as any).mustChangePassword || false;
       } else if (token?.id) {
-        // Refresh privileges from DB on each token refresh so role/admin-level
-        // changes take effect immediately without requiring a re-login.
+        // Refresh admin-level / password-change flags from DB on each token
+        // refresh so those changes take effect without a re-login.
+        //
+        // IMPORTANT: we deliberately do NOT refresh token.role here. The role on
+        // the token is the PORTAL the user chose at login (mentee / mentor /
+        // admin). A user can hold more than one profile, but the DB stores only a
+        // single primary role — overwriting the token with it would drag a
+        // multi-role user out of the portal they logged into and break the
+        // strict separation between the mentee, mentor and admin experiences.
         try {
           const fresh = await prisma.user.findUnique({
             where: { id: token.id as string },
-            select: { role: true, adminLevel: true, mustChangePassword: true },
+            select: { adminLevel: true, mustChangePassword: true },
           });
           if (fresh) {
-            token.role = fresh.role;
             token.adminLevel = fresh.adminLevel || 'STANDARD_ADMIN';
             token.mustChangePassword = fresh.mustChangePassword || false;
           }
