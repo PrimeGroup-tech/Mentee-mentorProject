@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { LogOut, LayoutDashboard, Users, User, Settings, CalendarDays, UserCog, Upload, BarChart3, KeyRound } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, User, Settings, CalendarDays, UserCog, Upload, BarChart3, KeyRound, ScrollText } from 'lucide-react';
 
 interface BrandedHeaderProps {
   title?: string;
@@ -101,6 +101,15 @@ export function BrandedHeader({ title, subtitle, showNav = true }: BrandedHeader
                   >
                     <Upload className="w-4 h-4 mr-1.5" />
                     <span className="hidden sm:inline">Bulk Upload</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-white/80 hover:text-white hover:bg-white/10"
+                    onClick={() => router.push('/admin/logs')}
+                  >
+                    <ScrollText className="w-4 h-4 mr-1.5" />
+                    <span className="hidden sm:inline">Logs</span>
                   </Button>
                 </>
               )}
