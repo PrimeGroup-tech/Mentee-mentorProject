@@ -67,6 +67,19 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { userId, action } = body;
 
+    // ACTION: Restore ALL locked/deactivated accounts in one click (bulk).
+    // Handled before the single-user userId validation since it targets many users.
+    if (action === 'restore_all_locked') {
+      const result = await prisma.user.updateMany({
+        where: { OR: [{ isActive: false }, { NOT: { lockedAt: null } }] },
+        data: { isActive: true, lockedAt: null, failedLoginAttempts: 0 },
+      });
+      await prisma.auditLog.create({
+        data: { action: 'BULK_ACCOUNTS_RESTORED', description: `Admin restored access for ${result.count} locked/deactivated account(s)`, performedByEmail: admin.email },
+      });
+      return NextResponse.json({ success: true, message: `Restored access for ${result.count} account(s)`, count: result.count });
+    }
+
     if (!userId || !isValidId(userId)) {
       return NextResponse.json({ error: 'Valid User ID is required' }, { status: 400 });
     }
