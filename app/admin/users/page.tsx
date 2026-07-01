@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BrandedHeader } from '@/components/branded-header';
 import { PasswordInput } from '@/components/password-input';
-import { Users, Search, KeyRound, ArrowLeftRight, Shield, UserCheck, GraduationCap, AlertTriangle, Trash2, Ban, CheckCircle, UserPlus, Edit, MoreVertical, Lock, Unlock, Briefcase } from 'lucide-react';
+import { Users, Search, KeyRound, ArrowLeftRight, Shield, ShieldCheck, UserCheck, GraduationCap, AlertTriangle, Trash2, Ban, CheckCircle, UserPlus, Edit, MoreVertical, Lock, Unlock, Briefcase, RotateCcw } from 'lucide-react';
 import { LEVEL_OPTIONS } from '@/lib/level-config';
 
 interface UserItem {
@@ -21,6 +21,7 @@ interface UserItem {
   name: string;
   email: string;
   role: string;
+  adminLevel?: string;
   isActive: boolean;
   hasDualRole: boolean;
   createdAt: string;
@@ -52,6 +53,7 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('ALL');
   const [message, setMessage] = useState({ type: '', text: '' });
+  const iAmSuperAdmin = (session?.user as any)?.adminLevel === 'SUPER_ADMIN';
 
   // Dialogs
   const [pwdDialog, setPwdDialog] = useState(false);
@@ -217,6 +219,11 @@ export default function AdminUsersPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold text-[#08172E] truncate">{u.name || 'Unnamed'}</h3>
                       {roleBadge(u.role)}
+                      {u.role === 'HR_ADMIN' && (
+                        u.adminLevel === 'SUPER_ADMIN'
+                          ? <Badge className="bg-indigo-100 text-indigo-800 border-indigo-200"><ShieldCheck className="w-3 h-3 mr-1" />Super Admin</Badge>
+                          : <Badge className="bg-slate-100 text-slate-700 border-slate-200"><Shield className="w-3 h-3 mr-1" />Standard Admin</Badge>
+                      )}
                       {u.hasDualRole && <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">Dual Role</Badge>}
                       {!u.isActive && <Badge className="bg-red-100 text-red-700 border-red-200"><Ban className="w-3 h-3 mr-1" />Deactivated</Badge>}
                       {u.lockedAt && <Badge className="bg-orange-100 text-orange-700 border-orange-200"><Lock className="w-3 h-3 mr-1" />Locked</Badge>}
@@ -243,15 +250,17 @@ export default function AdminUsersPage() {
                       </Button>
                       {actionsOpen === u.id && (
                         <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border z-50 py-1">
-                          {/* Toggle Active */}
-                          <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => doAction(u.id, 'toggle_active')}>
-                            {u.isActive ? <><Ban className="w-4 h-4 text-red-500" />Revoke Login</> : <><CheckCircle className="w-4 h-4 text-emerald-500" />Restore Login</>}
-                          </button>
+                          {/* Restore Access — one-click for blocked/locked/deactivated users */}
+                          {(!u.isActive || u.lockedAt) && (
+                            <button className="w-full px-3 py-2 text-left text-sm hover:bg-green-50 text-green-700 font-medium flex items-center gap-2" onClick={() => doAction(u.id, 'unlock_account')}>
+                              <RotateCcw className="w-4 h-4 text-green-600" />Restore Access
+                            </button>
+                          )}
 
-                          {/* Unlock Account */}
-                          {u.lockedAt && (
-                            <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => doAction(u.id, 'unlock_account')}>
-                              <Unlock className="w-4 h-4 text-green-500" />Unlock Account
+                          {/* Revoke Login (only when currently active) */}
+                          {u.isActive && (
+                            <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => doAction(u.id, 'toggle_active')}>
+                              <Ban className="w-4 h-4 text-red-500" />Revoke Login
                             </button>
                           )}
 
@@ -285,25 +294,44 @@ export default function AdminUsersPage() {
                             </>
                           )}
 
-                          {/* Make/Demote Admin */}
-                          {u.role !== 'HR_ADMIN' ? (
-                            <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => doAction(u.id, 'make_admin')}>
-                              <Shield className="w-4 h-4 text-purple-500" />Promote to Admin
-                            </button>
-                          ) : (
-                            u.id !== session?.user?.id && (
-                              <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => doAction(u.id, 'demote_admin', { demoteTo: 'MENTEE' })}>
-                                <ArrowLeftRight className="w-4 h-4 text-amber-500" />Demote from Admin
+                          {/* Make/Demote Admin — Super Admin only */}
+                          {iAmSuperAdmin && (
+                            u.role !== 'HR_ADMIN' ? (
+                              <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => doAction(u.id, 'make_admin')}>
+                                <Shield className="w-4 h-4 text-purple-500" />Promote to Admin
                               </button>
+                            ) : (
+                              <>
+                                {/* Set privilege level */}
+                                {u.adminLevel === 'SUPER_ADMIN' ? (
+                                  u.id !== session?.user?.id && (
+                                    <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => doAction(u.id, 'set_admin_level', { adminLevel: 'STANDARD_ADMIN' })}>
+                                      <Shield className="w-4 h-4 text-slate-500" />Set as Standard Admin
+                                    </button>
+                                  )
+                                ) : (
+                                  <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => doAction(u.id, 'set_admin_level', { adminLevel: 'SUPER_ADMIN' })}>
+                                    <ShieldCheck className="w-4 h-4 text-indigo-600" />Set as Super Admin
+                                  </button>
+                                )}
+                                {u.id !== session?.user?.id && (
+                                  <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => doAction(u.id, 'demote_admin', { demoteTo: 'MENTEE' })}>
+                                    <ArrowLeftRight className="w-4 h-4 text-amber-500" />Demote from Admin
+                                  </button>
+                                )}
+                              </>
                             )
                           )}
 
-                          <hr className="my-1" />
-
-                          {/* Delete */}
-                          <button className="w-full px-3 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2" onClick={() => { setDeleteUser(u); setDeleteDialog(true); setActionsOpen(null); }}>
-                            <Trash2 className="w-4 h-4" />Delete User
-                          </button>
+                          {/* Delete — Super Admin only */}
+                          {iAmSuperAdmin && (
+                            <>
+                              <hr className="my-1" />
+                              <button className="w-full px-3 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2" onClick={() => { setDeleteUser(u); setDeleteDialog(true); setActionsOpen(null); }}>
+                                <Trash2 className="w-4 h-4" />Delete User
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
