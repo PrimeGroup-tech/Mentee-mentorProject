@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import { isValidId, sanitizeString, sanitizeEmail } from '@/lib/security';
 import { sendProfileChangeNotification } from '@/lib/email';
 import { applyRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
+import { isSuperAdmin, requiresSuperAdmin, SUPER_ADMIN, STANDARD_ADMIN } from '@/lib/admin-permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
         name: true,
         email: true,
         role: true,
+        adminLevel: true,
         isActive: true,
         hasDualRole: true,
         createdAt: true,
@@ -67,6 +69,11 @@ export async function PATCH(request: Request) {
 
     if (!userId || !isValidId(userId)) {
       return NextResponse.json({ error: 'Valid User ID is required' }, { status: 400 });
+    }
+
+    // Enforce admin privilege levels: only super admins may perform sensitive actions
+    if (requiresSuperAdmin(action) && !isSuperAdmin(admin)) {
+      return NextResponse.json({ error: 'This action requires Super Admin privileges.' }, { status: 403 });
     }
 
     const targetUser = await prisma.user.findUnique({
@@ -243,9 +250,9 @@ export async function PATCH(request: Request) {
       if (targetUser.role === 'HR_ADMIN') {
         return NextResponse.json({ error: 'User is already an Admin' }, { status: 400 });
       }
-      await prisma.user.update({ where: { id: userId }, data: { role: 'HR_ADMIN' } });
+      await prisma.user.update({ where: { id: userId }, data: { role: 'HR_ADMIN', adminLevel: STANDARD_ADMIN } });
       await prisma.auditLog.create({
-        data: { action: 'PROMOTED_TO_ADMIN', description: `Admin promoted ${targetUser.email} to HR_ADMIN`, performedByEmail: admin.email },
+        data: { action: 'PROMOTED_TO_ADMIN', description: `Admin promoted ${targetUser.email} to HR_ADMIN (Standard Admin)`, performedByEmail: admin.email },
       });
       sendProfileChangeNotification({ userEmail: targetUser.email, userName: targetUser.name || '', changes: 'You have been promoted to Admin role.', adminEmail: admin.email }).catch(console.error);
       return NextResponse.json({ success: true, message: 'User promoted to Admin' });
@@ -275,6 +282,27 @@ export async function PATCH(request: Request) {
         data: { action: 'DEMOTED_FROM_ADMIN', description: `Admin demoted ${targetUser.email} from HR_ADMIN to ${newRole}`, performedByEmail: admin.email },
       });
       return NextResponse.json({ success: true, message: `User demoted to ${newRole}` });
+    }
+
+    // ACTION: Set admin privilege level (super admin only)
+    if (action === 'set_admin_level') {
+      const { adminLevel } = body;
+      if (![SUPER_ADMIN, STANDARD_ADMIN].includes(adminLevel)) {
+        return NextResponse.json({ error: 'Invalid privilege level' }, { status: 400 });
+      }
+      if (targetUser.role !== 'HR_ADMIN') {
+        return NextResponse.json({ error: 'User is not an Admin' }, { status: 400 });
+      }
+      // Prevent a super admin from demoting their own privilege (avoid lockout)
+      if (targetUser.id === admin.id && adminLevel !== SUPER_ADMIN) {
+        return NextResponse.json({ error: 'You cannot lower your own privilege level' }, { status: 400 });
+      }
+      await prisma.user.update({ where: { id: userId }, data: { adminLevel } });
+      await prisma.auditLog.create({
+        data: { action: 'ADMIN_LEVEL_CHANGED', description: `Admin set privilege level of ${targetUser.email} to ${adminLevel}`, performedByEmail: admin.email },
+      });
+      sendProfileChangeNotification({ userEmail: targetUser.email, userName: targetUser.name || '', changes: `Your admin privilege level has been set to ${adminLevel === SUPER_ADMIN ? 'Super Admin' : 'Standard Admin'}.`, adminEmail: admin.email }).catch(console.error);
+      return NextResponse.json({ success: true, message: `Privilege level updated to ${adminLevel === SUPER_ADMIN ? 'Super Admin' : 'Standard Admin'}` });
     }
 
     // ACTION: Update user profile (name, email, basic info)
