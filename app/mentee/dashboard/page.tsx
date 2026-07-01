@@ -17,6 +17,11 @@ export default function MenteeDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if ((session?.user as any)?.role && (session?.user as any)?.role !== 'MENTEE') {
+      router.push('/');
+      return;
+    }
+
     const fetchProfile = async () => {
       try {
         const res = await fetch('/api/mentees/profile');
@@ -29,7 +34,7 @@ export default function MenteeDashboard() {
     };
 
     if (session) fetchProfile();
-  }, [session]);
+  }, [session, router]);
 
   if (loading) {
     return (
