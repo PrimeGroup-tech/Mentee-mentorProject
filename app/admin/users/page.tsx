@@ -252,8 +252,14 @@ export default function AdminUsersPage() {
                         <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border z-50 py-1">
                           {/* Restore Access — one-click for blocked/locked/deactivated users */}
                           {(!u.isActive || u.lockedAt) && (
-                            <button className="w-full px-3 py-2 text-left text-sm hover:bg-green-50 text-green-700 font-medium flex items-center gap-2" onClick={() => doAction(u.id, 'unlock_account')}>
-                              <RotateCcw className="w-4 h-4 text-green-600" />Restore Access
+                            <button
+                              type="button"
+                              disabled={actionLoading === u.id}
+                              className="w-full px-3 py-2 text-left text-sm font-semibold flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-70 disabled:cursor-not-allowed"
+                              onClick={() => doAction(u.id, 'unlock_account')}
+                            >
+                              <RotateCcw className="w-4 h-4 text-white" />
+                              {actionLoading === u.id ? 'Restoring...' : 'Restore Access'}
                             </button>
                           )}
 
