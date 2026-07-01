@@ -33,6 +33,7 @@ model User {
   name      String?
   password  String?
   role      UserRole   @default(MENTEE)
+  adminLevel String    @default("STANDARD_ADMIN")
   isActive  Boolean    @default(true)
   hasDualRole Boolean  @default(false)
   mustChangePassword Boolean @default(false)
